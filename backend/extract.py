@@ -109,7 +109,9 @@ def parse_ldoce5(raw_html: str, word: str) -> dict:
 
         # 音标文本（IPA）
         pron_tag = head.find(class_="PRON")
-        pron_text = get_text_clean(pron_tag).strip() if pron_tag else ""
+        raw_pron = get_text_clean(pron_tag).strip() if pron_tag else ""
+        # 去掉音标字母之间多余空格（BeautifulSoup有时会在标签间插入空格）
+        pron_text = re.sub(r'\s+', '', raw_pron)
 
         # 英音
         bre_link = head.find("a", class_="brefile")

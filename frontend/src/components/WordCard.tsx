@@ -25,8 +25,8 @@ interface Props {
 const SWIPE_THRESHOLD = 50   // px，水平滑动超过此值才切换
 
 export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChange }: Props) {
-  const [index, setIndex]       = useState(initialIndex)
-  const [flipped, setFlipped]   = useState(false)
+  const [index, setIndex] = useState(initialIndex)
+  const [flipped, setFlipped] = useState(false)
   const [direction, setDirection] = useState<'left' | 'right' | null>(null)
   const [animating, setAnimating] = useState(false)
   const [playingFile, setPlayingFile] = useState<string | null>(null)
@@ -35,11 +35,12 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
   const touchStartX = useRef(0)
   const touchStartY = useRef(0)
   const touchDeltaX = useRef(0)
-  const isDragging  = useRef(false)
-  const cardRef     = useRef<HTMLDivElement>(null)
+  const isDragging = useRef(false)
+  const cardRef = useRef<HTMLDivElement>(null)
+  const backScrollRef = useRef<HTMLDivElement>(null)
 
   const current = words[index]
-  const parsed  = current ? parsedDef(current) : null
+  const parsed = current ? parsedDef(current) : null
 
   // 切换索引时重置翻转状态
   const goTo = useCallback((newIndex: number, dir: 'left' | 'right') => {
@@ -51,6 +52,7 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
       setFlipped(false)
       setDirection(null)
       setAnimating(false)
+      backScrollRef.current?.scrollTo({ top: 0 })
       onIndexChange?.(newIndex)
     }, 280)
   }, [animating, words.length, onIndexChange])
@@ -70,7 +72,10 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
   const handleFlip = useCallback(() => {
     if (isDragging.current) return
     setFlipped(f => {
-      if (!f) markIfNeeded()
+      if (!f) {
+        markIfNeeded()
+        setTimeout(() => { backScrollRef.current?.scrollTo({ top: 0 }) }, 0)
+      }
       return !f
     })
   }, [markIfNeeded])
@@ -80,7 +85,7 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
     touchStartX.current = e.touches[0].clientX
     touchStartY.current = e.touches[0].clientY
     touchDeltaX.current = 0
-    isDragging.current  = false
+    isDragging.current = false
   }, [])
 
   const onTouchMove = useCallback((e: React.TouchEvent) => {
@@ -114,9 +119,9 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
   // ── 键盘支持（桌面调试用）──────────────────────────────
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft')  goPrev()
+      if (e.key === 'ArrowLeft') goPrev()
       if (e.key === 'ArrowRight') goNext()
-      if (e.key === ' ')          handleFlip()
+      if (e.key === ' ') handleFlip()
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -154,9 +159,8 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
           {words.map((_, i) => (
             <div
               key={i}
-              className={`deck-dot ${i === index ? 'active' : ''} ${
-                (words[i].reviewCount ?? 0) > 0 ? 'reviewed' : ''
-              }`}
+              className={`deck-dot ${i === index ? 'active' : ''} ${(words[i].reviewCount ?? 0) > 0 ? 'reviewed' : ''
+                }`}
             />
           ))}
         </div>
@@ -261,7 +265,7 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
 
           {/* ── 背面 ── */}
           <div className="dc-face dc-back">
-            <div className="dc-back-scroll" onClick={e => e.stopPropagation()}>
+            <div className="dc-back-scroll" ref={backScrollRef} onClick={e => e.stopPropagation()}>
               <div className="dc-back-inner">
                 {/* 背面顶部：单词 + 英音/美音各一行 */}
                 <div className="dc-back-head">
@@ -360,9 +364,9 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
 function SpeakerIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-      <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
-      <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
     </svg>
   )
 }
@@ -370,11 +374,11 @@ function SpeakerIcon() {
 function WaveIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-      <line x1="4"  y1="8"  x2="4"  y2="16"/>
-      <line x1="8"  y1="5"  x2="8"  y2="19"/>
-      <line x1="12" y1="8"  x2="12" y2="16"/>
-      <line x1="16" y1="5"  x2="16" y2="19"/>
-      <line x1="20" y1="8"  x2="20" y2="16"/>
+      <line x1="4" y1="8" x2="4" y2="16" />
+      <line x1="8" y1="5" x2="8" y2="19" />
+      <line x1="12" y1="8" x2="12" y2="16" />
+      <line x1="16" y1="5" x2="16" y2="19" />
+      <line x1="20" y1="8" x2="20" y2="16" />
     </svg>
   )
 }
@@ -382,8 +386,8 @@ function WaveIcon() {
 function FlipIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2L8 6l4 4"/><path d="M8 6h8a4 4 0 0 1 0 8h-2"/>
-      <path d="M12 22l4-4-4-4"/><path d="M16 18H8a4 4 0 0 1 0-8h2"/>
+      <path d="M12 2L8 6l4 4" /><path d="M8 6h8a4 4 0 0 1 0 8h-2" />
+      <path d="M12 22l4-4-4-4" /><path d="M16 18H8a4 4 0 0 1 0-8h2" />
     </svg>
   )
 }
@@ -540,7 +544,7 @@ const deckStyles = `
 
 .dc-pron-ipa {
   font-family: var(--font-mono);
-  font-size: 15px;
+  font-size: 17px;
   color: var(--text-secondary);
 }
 
@@ -633,7 +637,7 @@ const deckStyles = `
 }
 .dc-back-word {
   font-family: var(--font-display);
-  font-size: 1.6rem;
+  font-size: 1.9rem;
   color: var(--accent);
   font-weight: 400;
 }

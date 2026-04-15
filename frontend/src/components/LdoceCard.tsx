@@ -42,31 +42,6 @@ export function LdoceCard({ parsed }: Props) {
         </div>
       )}
 
-      {/* ── 音标 ── */}
-      {parsed.pron?.length > 0 && (
-        <div className="lc-pron-row">
-          {parsed.pron.map((p, i) => {
-            const label = i === 0 ? 'BrE' : 'AmE'
-            const ipa   = p.bre ?? p.ame ?? ''
-            return (
-              <span key={i} className="lc-pron-item">
-                <span className="lc-pron-label">{label}</span>
-                {ipa && <span className="lc-pron-ipa">/{ipa}/</span>}
-                {p.audio && (
-                  <button
-                    className={`lc-audio-btn ${playingFile === p.audio ? 'playing' : ''}`}
-                    onClick={(e) => handlePlay(e, p.audio)}
-                    aria-label={`播放${label}发音`}
-                  >
-                    {playingFile === p.audio ? <WaveIcon /> : <SpeakerIcon />}
-                  </button>
-                )}
-              </span>
-            )
-          })}
-        </div>
-      )}
-
       {/* ── 义项 ── */}
       {hasSenses && (
         <div className="lc-senses">
@@ -120,12 +95,14 @@ export function LdoceCard({ parsed }: Props) {
           <span className="lc-section-label">WORD FAMILY</span>
           <div className="lc-family-groups">
             {parsed.word_family.map((g, i) => (
-              <span key={i} className="lc-family-group">
+              <div key={i} className="lc-family-group">
                 <span className="lc-family-pos">{g.pos}</span>
-                {g.words.map((w, j) => (
-                  <span key={j} className="lc-family-word">{w}</span>
-                ))}
-              </span>
+                <div className="lc-family-words">
+                  {g.words.map((w, j) => (
+                    <span key={j} className="lc-family-word">{w}</span>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         </div>
@@ -174,8 +151,8 @@ function ExampleItem({
 function SpeakerIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-      <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
     </svg>
   )
 }
@@ -183,11 +160,11 @@ function SpeakerIcon() {
 function WaveIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-      <line x1="4"  y1="8"  x2="4"  y2="16"/>
-      <line x1="8"  y1="5"  x2="8"  y2="19"/>
-      <line x1="12" y1="8"  x2="12" y2="16"/>
-      <line x1="16" y1="5"  x2="16" y2="19"/>
-      <line x1="20" y1="8"  x2="20" y2="16"/>
+      <line x1="4" y1="8" x2="4" y2="16" />
+      <line x1="8" y1="5" x2="8" y2="19" />
+      <line x1="12" y1="8" x2="12" y2="16" />
+      <line x1="16" y1="5" x2="16" y2="19" />
+      <line x1="20" y1="8" x2="20" y2="16" />
     </svg>
   )
 }
@@ -321,16 +298,17 @@ const styles = `
   text-transform: uppercase;
 }
 .lc-def-en {
-  font-size: 14px;
-  line-height: 1.65;
+  font-size: 15px;
+  line-height: 1.7;
   color: var(--text-primary);
-  /* 防止连字：确保单词间有空格 */
+  font-weight: 400;
   word-spacing: 0.02em;
 }
 .lc-def-cn {
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: 14px;
+  line-height: 1.65;
   color: var(--text-secondary);
+  font-weight: 400;
 }
 
 /* 例句列表 */
@@ -356,16 +334,15 @@ const styles = `
   gap: 2px;
 }
 .lc-ex-en {
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.65;
   color: var(--text-secondary);
   font-style: italic;
-  /* 防连字 */
   word-spacing: 0.02em;
 }
 .lc-ex-cn {
-  font-size: 11px;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.55;
   color: var(--text-muted);
 }
 
@@ -388,13 +365,12 @@ const styles = `
 }
 .lc-family-groups {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  flex-direction: column;
+  gap: 8px;
 }
 .lc-family-group {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
   gap: 5px;
 }
 .lc-family-pos {
@@ -404,13 +380,19 @@ const styles = `
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
+.lc-family-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
 .lc-family-word {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-secondary);
-  padding: 1px 6px;
+  padding: 2px 8px;
   border-radius: 4px;
   background: var(--bg-raised);
   border: 1px solid var(--border);
+  font-weight: 400;
 }
 
 /* section label */
