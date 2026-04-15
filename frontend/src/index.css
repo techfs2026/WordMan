@@ -1,0 +1,150 @@
+/* ── Google Fonts ─────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400&family=Noto+Sans+SC:wght@300;400&display=swap');
+
+/* ── CSS 变量（蓝白主题） ─────────────────────────────── */
+:root {
+  --bg: #f0f4f8;
+  --bg-card: #ffffff;
+  --bg-raised: #e8eef5;
+  --border: rgba(30, 90, 160, 0.12);
+  --border-hi: rgba(30, 90, 160, 0.25);
+
+  --text-primary: #0d1f35;
+  --text-secondary: #3a5a82;
+  --text-muted: #7a9abf;
+
+  --accent: #1a6fc4;
+  /* 蓝色主调 */
+  --accent-dim: rgba(26, 111, 196, 0.12);
+  --accent-glow: rgba(26, 111, 196, 0.08);
+
+  --red: #d94f4f;
+  --green: #2e9e6b;
+
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  --font-display: 'DM Serif Display', serif;
+  --font-mono: 'DM Mono', monospace;
+  --font-body: 'Noto Sans SC', sans-serif;
+}
+
+/* ── Reset ────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+html {
+  height: 100%;
+  background: var(--bg);
+}
+
+body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 17px;         /* 原 16px → 17px */
+  line-height: 1.65;
+  font-weight: 300;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── 隐藏所有滚动条 ───────────────────────────────────── */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── 按钮基础 ─────────────────────────────────────────── */
+button {
+  font-family: var(--font-body);
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ── 动画 ─────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* ── 通用工具类 ───────────────────────────────────────── */
+.animate-fade-up {
+  animation: fadeUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.25s ease both;
+}
+
+.animate-spin {
+  animation: spin 0.8s linear infinite;
+}
+
+.animate-pulse {
+  animation: pulse 1.5s ease-in-out infinite;
+}

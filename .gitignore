@@ -1,0 +1,9 @@
+node_modules/
+dist/
+__pycache__/
+
+LDOCE5/
+
+.DS_Store
+note.md
+temp.html

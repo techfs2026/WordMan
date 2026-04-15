@@ -1,0 +1,440 @@
+/**
+ * LdoceCard.tsx
+ * 渲染朗文5结构化数据：词性、音标、义项、例句（含音频按钮）、词族、词源
+ */
+
+import { useCallback, useState } from 'react'
+import type { LdoceParsed, ExampleEntry } from '../services/db'
+import { playAudio } from '../services/db'
+
+interface Props {
+  parsed: LdoceParsed
+}
+
+export function LdoceCard({ parsed }: Props) {
+  const [playingFile, setPlayingFile] = useState<string | null>(null)
+
+  const handlePlay = useCallback(async (e: React.MouseEvent, file: string) => {
+    e.stopPropagation()
+    if (!file || playingFile) return
+    setPlayingFile(file)
+    await playAudio(file)
+    setPlayingFile(null)
+  }, [playingFile])
+
+  if (parsed._raw_html !== undefined) {
+    return <div className="lc-raw">（解析失败，原始数据不可用）</div>
+  }
+
+  const hasSenses = parsed.senses?.length > 0
+  const hasCorpus = parsed.corpus_examples?.length > 0
+  const hasFamily = parsed.word_family?.length > 0
+
+  return (
+    <div className="lc-root">
+
+      {/* ── 词性 / 语法 / 语域 ── */}
+      {(parsed.pos || parsed.gram || parsed.register) && (
+        <div className="lc-meta-row">
+          {parsed.pos && <span className="lc-pos">{parsed.pos}</span>}
+          {parsed.gram && <span className="lc-gram">{parsed.gram}</span>}
+          {parsed.register && <span className="lc-register">{parsed.register}</span>}
+        </div>
+      )}
+
+      {/* ── 音标 ── */}
+      {parsed.pron?.length > 0 && (
+        <div className="lc-pron-row">
+          {parsed.pron.map((p, i) => {
+            const label = i === 0 ? 'BrE' : 'AmE'
+            const ipa   = p.bre ?? p.ame ?? ''
+            return (
+              <span key={i} className="lc-pron-item">
+                <span className="lc-pron-label">{label}</span>
+                {ipa && <span className="lc-pron-ipa">/{ipa}/</span>}
+                {p.audio && (
+                  <button
+                    className={`lc-audio-btn ${playingFile === p.audio ? 'playing' : ''}`}
+                    onClick={(e) => handlePlay(e, p.audio)}
+                    aria-label={`播放${label}发音`}
+                  >
+                    {playingFile === p.audio ? <WaveIcon /> : <SpeakerIcon />}
+                  </button>
+                )}
+              </span>
+            )
+          })}
+        </div>
+      )}
+
+      {/* ── 义项 ── */}
+      {hasSenses && (
+        <div className="lc-senses">
+          {parsed.senses.map((s, i) => (
+            <div key={i} className="lc-sense">
+              <div className="lc-sense-head">
+                <span className="lc-sense-num">{i + 1}</span>
+                {s.activ && <span className="lc-activ">{s.activ}</span>}
+              </div>
+
+              {s.en && <p className="lc-def-en">{s.en}</p>}
+              {s.cn && <p className="lc-def-cn">{s.cn}</p>}
+
+              {s.examples?.length > 0 && (
+                <ul className="lc-examples">
+                  {s.examples.slice(0, 2).map((ex, j) => (
+                    <ExampleItem
+                      key={j}
+                      ex={ex}
+                      playingFile={playingFile}
+                      onPlay={handlePlay}
+                    />
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── 语料库例句 ── */}
+      {hasCorpus && (
+        <div className="lc-corpus">
+          <span className="lc-section-label">CORPUS EXAMPLES</span>
+          <ul className="lc-examples">
+            {parsed.corpus_examples.slice(0, 4).map((ex, i) => (
+              <ExampleItem
+                key={i}
+                ex={ex}
+                playingFile={playingFile}
+                onPlay={handlePlay}
+              />
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* ── 词族 ── */}
+      {hasFamily && (
+        <div className="lc-family">
+          <span className="lc-section-label">WORD FAMILY</span>
+          <div className="lc-family-groups">
+            {parsed.word_family.map((g, i) => (
+              <span key={i} className="lc-family-group">
+                <span className="lc-family-pos">{g.pos}</span>
+                {g.words.map((w, j) => (
+                  <span key={j} className="lc-family-word">{w}</span>
+                ))}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── 词源 ── */}
+      {parsed.etym && (
+        <p className="lc-etym">{parsed.etym}</p>
+      )}
+
+      <style>{styles}</style>
+    </div>
+  )
+}
+
+// ── 例句行（含音频按钮）─────────────────────────────────
+
+function ExampleItem({
+  ex, playingFile, onPlay
+}: {
+  ex: ExampleEntry
+  playingFile: string | null
+  onPlay: (e: React.MouseEvent, file: string) => void
+}) {
+  return (
+    <li className="lc-example-item">
+      <div className="lc-example-body">
+        <p className="lc-ex-en">{ex.en_txt}</p>
+        {ex.cn_txt && <p className="lc-ex-cn">{ex.cn_txt}</p>}
+      </div>
+      {ex.audio && (
+        <button
+          className={`lc-audio-btn ${playingFile === ex.audio ? 'playing' : ''}`}
+          onClick={(e) => onPlay(e, ex.audio)}
+          aria-label="播放例句"
+        >
+          {playingFile === ex.audio ? <WaveIcon /> : <SpeakerIcon />}
+        </button>
+      )}
+    </li>
+  )
+}
+
+// ── 图标 ──────────────────────────────────────────────
+
+function SpeakerIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+    </svg>
+  )
+}
+
+function WaveIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+      <line x1="4"  y1="8"  x2="4"  y2="16"/>
+      <line x1="8"  y1="5"  x2="8"  y2="19"/>
+      <line x1="12" y1="8"  x2="12" y2="16"/>
+      <line x1="16" y1="5"  x2="16" y2="19"/>
+      <line x1="20" y1="8"  x2="20" y2="16"/>
+    </svg>
+  )
+}
+
+// ── 样式 ─────────────────────────────────────────────
+
+const styles = `
+.lc-root {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* 词性行 */
+.lc-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.lc-pos {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: 4px;
+  padding: 2px 7px;
+}
+.lc-gram {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  border: 1px solid var(--border-hi);
+  border-radius: 4px;
+  padding: 2px 7px;
+}
+.lc-register {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: #9a8060;
+  border: 1px solid #4a3820;
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-style: italic;
+}
+
+/* 音标行 */
+.lc-pron-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.lc-pron-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.lc-pron-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+.lc-pron-ipa {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* 音频按钮（通用） */
+.lc-audio-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: all 0.18s;
+  cursor: pointer;
+}
+.lc-audio-btn:active,
+.lc-audio-btn.playing {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* 义项 */
+.lc-senses {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.lc-sense {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+.lc-sense:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+.lc-sense-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lc-sense-num {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  min-width: 14px;
+}
+.lc-activ {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: #6a9a7a;
+  border: 1px solid #2a4a3a;
+  border-radius: 3px;
+  padding: 1px 5px;
+  text-transform: uppercase;
+}
+.lc-def-en {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text-primary);
+  /* 防止连字：确保单词间有空格 */
+  word-spacing: 0.02em;
+}
+.lc-def-cn {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+/* 例句列表 */
+.lc-examples {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 10px;
+  border-left: 2px solid var(--border-hi);
+}
+.lc-example-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.lc-example-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.lc-ex-en {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  font-style: italic;
+  /* 防连字 */
+  word-spacing: 0.02em;
+}
+.lc-ex-cn {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* 语料库例句 */
+.lc-corpus {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+/* 词族 */
+.lc-family {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.lc-family-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.lc-family-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+.lc-family-pos {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.lc-family-word {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+}
+
+/* section label */
+.lc-section-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+/* 词源 */
+.lc-etym {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  line-height: 1.6;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.lc-raw {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+`
