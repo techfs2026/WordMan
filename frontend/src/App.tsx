@@ -296,6 +296,7 @@ const appStyles = `
 
 .status-bar-fill {
   height: var(--safe-top);
+  min-height: env(safe-area-inset-top, 0px);
   background: var(--bg);
   flex-shrink: 0;
 }

@@ -4,7 +4,7 @@
 
 import Dexie, { type Table } from 'dexie'
 
-// ── 新 schema 类型（与 extract.py 对齐）────────────────
+// ── 类型定义（与 extract.py 新格式对齐）────────────────
 
 export interface PronEntry {
   bre?: string
@@ -30,17 +30,26 @@ export interface WordFamilyGroup {
   words: string[]
 }
 
+/** 单个词性的数据块 */
+export interface LdoceEntry {
+  word: string
+  pos?: string
+  gram?: string
+  register?: string
+  pron?: PronEntry[]
+  senses?: SenseEntry[]
+  corpus_examples?: ExampleEntry[]
+  word_family?: WordFamilyGroup[]
+  etym?: string
+}
+
+/** 顶层结构，支持多词性（如 date 同时有名词和动词） */
 export interface LdoceParsed {
   word: string
-  pos: string
-  gram: string
-  register: string
-  pron: PronEntry[]
-  senses: SenseEntry[]
-  corpus_examples: ExampleEntry[]
-  word_family: WordFamilyGroup[]
-  etym: string
-  _raw_html?: string
+  entries: LdoceEntry[]
+  word_family?: WordFamilyGroup[]    // 顶层共用词族
+  corpus_examples?: ExampleEntry[]   // 顶层共用语料库
+  _raw_html?: string                 // 解析失败时存在
 }
 
 export interface WordEntry {
@@ -101,9 +110,14 @@ export interface SyncResult {
 
 function collectAudioPaths(w: LdoceParsed): string[] {
   const paths: string[] = []
-  for (const p of w.pron ?? []) if (p.audio) paths.push(p.audio)
-  for (const s of w.senses ?? [])
-    for (const ex of s.examples ?? []) if (ex.audio) paths.push(ex.audio)
+  // 遍历各词性 entry
+  for (const entry of w.entries ?? []) {
+    for (const p of entry.pron ?? []) if (p.audio) paths.push(p.audio)
+    for (const s of entry.senses ?? [])
+      for (const ex of s.examples ?? []) if (ex.audio) paths.push(ex.audio)
+    for (const ex of entry.corpus_examples ?? []) if (ex.audio) paths.push(ex.audio)
+  }
+  // 顶层共用语料库
   for (const ex of w.corpus_examples ?? []) if (ex.audio) paths.push(ex.audio)
   return [...new Set(paths)]
 }

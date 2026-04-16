@@ -1,15 +1,59 @@
 /**
  * LdoceCard.tsx
- * 渲染朗文5结构化数据：词性、音标、义项、例句（含音频按钮）、词族、词源
+ * 渲染朗文5结构化数据：支持多词性（如 date 同时有名词/动词）
+ * 每个词性独立展示：词性、音标、义项、例句（含音频按钮）、词族、词源
  */
 
 import { useCallback, useState } from 'react'
-import type { LdoceParsed, ExampleEntry } from '../services/db'
+import type { ExampleEntry } from '../services/db'
 import { playAudio } from '../services/db'
+
+// ── 类型定义 ──────────────────────────────────────────
+
+interface PronEntry {
+  bre?: string
+  ame?: string
+  audio: string
+}
+
+interface SenseEntry {
+  activ?: string
+  en?: string
+  cn?: string
+  examples?: ExampleEntry[]
+}
+
+interface WordFamilyGroup {
+  pos: string
+  words: string[]
+}
+
+interface LdoceEntry {
+  word: string
+  pos?: string
+  gram?: string
+  register?: string
+  pron?: PronEntry[]
+  senses?: SenseEntry[]
+  corpus_examples?: ExampleEntry[]
+  word_family?: WordFamilyGroup[]
+  etym?: string
+}
+
+export interface LdoceParsed {
+  word: string
+  entries: LdoceEntry[]
+  word_family?: WordFamilyGroup[]
+  corpus_examples?: ExampleEntry[]
+  /** 解析失败时存在 */
+  _raw_html?: string
+}
 
 interface Props {
   parsed: LdoceParsed
 }
+
+// ── 主组件 ────────────────────────────────────────────
 
 export function LdoceCard({ parsed }: Props) {
   const [playingFile, setPlayingFile] = useState<string | null>(null)
@@ -26,75 +70,105 @@ export function LdoceCard({ parsed }: Props) {
     return <div className="lc-raw">（解析失败，原始数据不可用）</div>
   }
 
-  const hasSenses = parsed.senses?.length > 0
-  const hasCorpus = parsed.corpus_examples?.length > 0
-  const hasFamily = parsed.word_family?.length > 0
+  const entries = parsed.entries ?? []
+  const hasTopFamily = (parsed.word_family?.length ?? 0) > 0
+  const hasTopCorpus = (parsed.corpus_examples?.length ?? 0) > 0
+  const multiPos = entries.length > 1
 
   return (
     <div className="lc-root">
 
-      {/* ── 词性 / 语法 / 语域 ── */}
-      {(parsed.pos || parsed.gram || parsed.register) && (
-        <div className="lc-meta-row">
-          {parsed.pos && <span className="lc-pos">{parsed.pos}</span>}
-          {parsed.gram && <span className="lc-gram">{parsed.gram}</span>}
-          {parsed.register && <span className="lc-register">{parsed.register}</span>}
-        </div>
-      )}
+      {entries.map((entry, ei) => (
+        <div key={ei} className={`lc-entry ${multiPos ? 'lc-entry-multi' : ''}`}>
 
-      {/* ── 义项 ── */}
-      {hasSenses && (
-        <div className="lc-senses">
-          {parsed.senses.map((s, i) => (
-            <div key={i} className="lc-sense">
-              <div className="lc-sense-head">
-                <span className="lc-sense-num">{i + 1}</span>
-                {s.activ && <span className="lc-activ">{s.activ}</span>}
-              </div>
-
-              {s.en && <p className="lc-def-en">{s.en}</p>}
-              {s.cn && <p className="lc-def-cn">{s.cn}</p>}
-
-              {s.examples?.length > 0 && (
-                <ul className="lc-examples">
-                  {s.examples.slice(0, 2).map((ex, j) => (
-                    <ExampleItem
-                      key={j}
-                      ex={ex}
-                      playingFile={playingFile}
-                      onPlay={handlePlay}
-                    />
-                  ))}
-                </ul>
-              )}
+          {/* ── 词性 / 语法 / 语域 ── */}
+          {(entry.pos || entry.gram || entry.register) && (
+            <div className="lc-meta-row">
+              {entry.pos && <span className="lc-pos">{entry.pos}</span>}
+              {entry.gram && <span className="lc-gram">{entry.gram}</span>}
+              {entry.register && <span className="lc-register">{entry.register}</span>}
             </div>
-          ))}
-        </div>
-      )}
+          )}
 
-      {/* ── 语料库例句 ── */}
-      {hasCorpus && (
-        <div className="lc-corpus">
-          <span className="lc-section-label">CORPUS EXAMPLES</span>
-          <ul className="lc-examples">
-            {parsed.corpus_examples.slice(0, 4).map((ex, i) => (
-              <ExampleItem
-                key={i}
-                ex={ex}
-                playingFile={playingFile}
-                onPlay={handlePlay}
-              />
-            ))}
-          </ul>
-        </div>
-      )}
+          {/* ── 义项 ── */}
+          {(entry.senses?.length ?? 0) > 0 && (
+            <div className="lc-senses">
+              {entry.senses!.map((s, i) => (
+                <div key={i} className="lc-sense">
+                  <div className="lc-sense-head">
+                    <span className="lc-sense-num">{i + 1}</span>
+                    {s.activ && <span className="lc-activ">{s.activ}</span>}
+                  </div>
 
-      {/* ── 词族 ── */}
-      {hasFamily && (
-        <div className="lc-family">
+                  {s.en && <p className="lc-def-en">{s.en}</p>}
+                  {s.cn && <p className="lc-def-cn">{s.cn}</p>}
+
+                  {(s.examples?.length ?? 0) > 0 && (
+                    <ul className="lc-examples">
+                      {s.examples!.slice(0, 2).map((ex, j) => (
+                        <ExampleItem
+                          key={j}
+                          ex={ex}
+                          playingFile={playingFile}
+                          onPlay={handlePlay}
+                        />
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── 语料库例句（词条级） ── */}
+          {(entry.corpus_examples?.length ?? 0) > 0 && (
+            <div className="lc-corpus">
+              <span className="lc-section-label">CORPUS EXAMPLES</span>
+              <ul className="lc-examples">
+                {entry.corpus_examples!.slice(0, 4).map((ex, i) => (
+                  <ExampleItem
+                    key={i}
+                    ex={ex}
+                    playingFile={playingFile}
+                    onPlay={handlePlay}
+                  />
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* ── 词族（词条级） ── */}
+          {(entry.word_family?.length ?? 0) > 0 && (
+            <div className="lc-family">
+              <span className="lc-section-label">WORD FAMILY</span>
+              <div className="lc-family-groups">
+                {entry.word_family!.map((g, i) => (
+                  <div key={i} className="lc-family-group">
+                    <span className="lc-family-pos">{g.pos}</span>
+                    <div className="lc-family-words">
+                      {g.words.map((w, j) => (
+                        <span key={j} className="lc-family-word">{w}</span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── 词源 ── */}
+          {entry.etym && (
+            <p className="lc-etym">{entry.etym}</p>
+          )}
+        </div>
+      ))}
+
+      {/* ── 顶层共用词族（所有词性共享，只显示一次） ── */}
+      {hasTopFamily && (
+        <div className="lc-family lc-family-top">
           <span className="lc-section-label">WORD FAMILY</span>
           <div className="lc-family-groups">
-            {parsed.word_family.map((g, i) => (
+            {parsed.word_family!.map((g, i) => (
               <div key={i} className="lc-family-group">
                 <span className="lc-family-pos">{g.pos}</span>
                 <div className="lc-family-words">
@@ -108,9 +182,21 @@ export function LdoceCard({ parsed }: Props) {
         </div>
       )}
 
-      {/* ── 词源 ── */}
-      {parsed.etym && (
-        <p className="lc-etym">{parsed.etym}</p>
+      {/* ── 顶层共用语料库 ── */}
+      {hasTopCorpus && (
+        <div className="lc-corpus lc-corpus-top">
+          <span className="lc-section-label">CORPUS EXAMPLES</span>
+          <ul className="lc-examples">
+            {parsed.corpus_examples!.slice(0, 4).map((ex, i) => (
+              <ExampleItem
+                key={i}
+                ex={ex}
+                playingFile={playingFile}
+                onPlay={handlePlay}
+              />
+            ))}
+          </ul>
+        </div>
       )}
 
       <style>{styles}</style>
@@ -175,7 +261,27 @@ const styles = `
 .lc-root {
   display: flex;
   flex-direction: column;
+  gap: 0;
+}
+
+/* 单个词性块 */
+.lc-entry {
+  display: flex;
+  flex-direction: column;
   gap: 14px;
+}
+
+/* 多词性时，第二个及以后的块加顶部分隔线 */
+.lc-entry-multi + .lc-entry-multi {
+  padding-top: 16px;
+  margin-top: 4px;
+  border-top: 2px solid color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* 顶层共用区块与词条之间的间距 */
+.lc-family-top,
+.lc-corpus-top {
+  margin-top: 4px;
 }
 
 /* 词性行 */
@@ -211,30 +317,6 @@ const styles = `
   border-radius: 4px;
   padding: 2px 7px;
   font-style: italic;
-}
-
-/* 音标行 */
-.lc-pron-row {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-}
-.lc-pron-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-.lc-pron-label {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.1em;
-  color: var(--text-muted);
-  text-transform: uppercase;
-}
-.lc-pron-ipa {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--text-secondary);
 }
 
 /* 音频按钮（通用） */

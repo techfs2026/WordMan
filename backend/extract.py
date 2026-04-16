@@ -36,7 +36,6 @@ def get_text_clean(tag) -> str:
     """提取标签文本，确保单词间有空格（防止连字）"""
     if tag is None:
         return ""
-    # 递归提取，在块级标签间插入空格
     parts = []
     for child in tag.descendants:
         if isinstance(child, NavigableString):
@@ -44,35 +43,23 @@ def get_text_clean(tag) -> str:
             if txt.strip():
                 parts.append(txt)
         elif child.name in ("a", "span", "b", "i", "em", "strong"):
-            # 内联元素：直接取文本，不加空格（会由 descendant 遍历处理）
             pass
-    # 用 get_text 但加空格分隔符，再清理多余空白
     raw = tag.get_text(separator=" ")
-    # 修复连字：在驼峰/数字边界加空格（防止 BeautifulSoup 把相邻 tag 文本拼接）
     raw = re.sub(r"\s+", " ", raw).strip()
     return raw
 
 
+def _normalize_apostrophe(text: str) -> str:
+    """将中文弯引号 ' ' 替换为英文直引号 '"""
+    return text.replace('\u2018', "'").replace('\u2019', "'")
+
+
 # ─────────────────────────────────────────────
-# 朗文5 HTML 解析器（新格式）
+# 朗文5 HTML 解析器（新格式，支持多词性）
 # ─────────────────────────────────────────────
 
-def parse_ldoce5(raw_html: str, word: str) -> dict:
-    """
-    解析朗文5 HTML，返回符合新 schema 的结构化数据。
-
-    输出格式：
-    {
-      word, pos, gram, register,
-      pron: [{ bre, audio }, { ame, audio }],
-      senses: [{ activ, en, cn, examples: [{ en_txt, cn_txt, audio }] }],
-      corpus_examples: [{ en_txt, cn_txt, audio }],
-      word_family: [{ pos, words: [str] }],
-      etym: str
-    }
-    """
-    soup = BeautifulSoup(raw_html, "html.parser")
-
+def _parse_single_entry(entry, word: str) -> dict:
+    """解析单个 ldoceEntry 块，返回一个词性组的结构化数据"""
     result: dict = {
         "word":     word,
         "pos":      "",
@@ -84,13 +71,6 @@ def parse_ldoce5(raw_html: str, word: str) -> dict:
         "word_family": [],
         "etym":     "",
     }
-
-    entry = soup.find(class_="ldoceEntry")
-    if not entry:
-        # 可能是重定向词条（@word）
-        redirect = soup.find(class_="entry_content")
-        result["_raw_html"] = str(soup)[:500]
-        return result
 
     # ── Head：词性 / 语法 / 音标 / 音频 ──
     head = entry.find(class_="Head")
@@ -107,21 +87,16 @@ def parse_ldoce5(raw_html: str, word: str) -> dict:
         if reg_tag:
             result["register"] = get_text_clean(reg_tag).strip()
 
-        # 音标文本（IPA）
         pron_tag = head.find(class_="PRON")
         raw_pron = get_text_clean(pron_tag).strip() if pron_tag else ""
-        # 去掉音标字母之间多余空格（BeautifulSoup有时会在标签间插入空格）
         pron_text = re.sub(r'\s+', '', raw_pron)
 
-        # 英音
         bre_link = head.find("a", class_="brefile")
         bre_audio = extract_sound_path(bre_link["href"]) if bre_link else ""
 
-        # 美音
         ame_link = head.find("a", class_="amefile")
         ame_audio = extract_sound_path(ame_link["href"]) if ame_link else ""
 
-        # PronCodes 里也有音标+美音
         proncode = head.find("a", class_="PronCodes")
         if proncode and not ame_audio:
             href = proncode.get("href", "")
@@ -136,50 +111,44 @@ def parse_ldoce5(raw_html: str, word: str) -> dict:
     # ── Senses：义项 ──
     senses_out = []
     for sense in entry.find_all(class_="Sense", recursive=True):
-        # 跳过嵌套 Sense（词源里的 Sense）
+        # 跳过嵌套在词源里的 Sense
         parent = sense.parent
         while parent and parent != entry:
             if "etym" in (parent.get("class") or []):
                 break
             parent = parent.parent
         else:
-            # 正常义项
             s: dict = {"activ": "", "en": "", "cn": "", "examples": []}
 
             activ = sense.find(class_="ACTIV")
             if activ:
                 s["activ"] = get_text_clean(activ).strip()
 
-            # 释义：英文 / 中文（朗文5双语版用 cn_txt）
             for def_tag in sense.find_all(class_="DEF"):
                 cn = def_tag.find(class_="cn_txt")
                 if cn:
-                    s["cn"] = get_text_clean(cn).strip()
+                    s["cn"] = _normalize_apostrophe(get_text_clean(cn).strip())
                 else:
-                    # 英文释义：去掉内部 a 标签只取文字
-                    s["en"] = get_text_clean(def_tag).strip()
+                    s["en"] = _normalize_apostrophe(get_text_clean(def_tag).strip())
 
-            # 例句
             for exa in sense.find_all(class_="EXAMPLE"):
                 ex: dict = {"en_txt": "", "cn_txt": "", "audio": ""}
 
-                # 例句音频
                 spk = exa.find("a", class_="exafile")
                 if spk and spk.get("href"):
                     ex["audio"] = extract_sound_path(spk["href"])
 
-                # 英文例句
                 en_span = exa.find(class_="english")
                 if en_span:
-                    # 去掉中文翻译子节点再取文本
                     cn_node = en_span.find(class_="cn_txt")
                     if cn_node:
-                        ex["cn_txt"] = get_text_clean(cn_node).strip()
+                        ex["cn_txt"] = _normalize_apostrophe(get_text_clean(cn_node).strip())
                         cn_node.extract()
-                    ex["en_txt"] = get_text_clean(en_span).strip()
+                    ex["en_txt"] = _normalize_apostrophe(get_text_clean(en_span).strip())
                 else:
-                    # 纯文本例句
-                    raw_txt = get_text_clean(exa).strip().lstrip("•").strip()
+                    raw_txt = _normalize_apostrophe(
+                        get_text_clean(exa).strip().lstrip("•").strip()
+                    )
                     ex["en_txt"] = raw_txt
 
                 if ex["en_txt"]:
@@ -189,23 +158,23 @@ def parse_ldoce5(raw_html: str, word: str) -> dict:
 
     result["senses"] = senses_out
 
-    # ── 语料库例句 ──
+    # ── 语料库例句（词条级，位于该 entry 内） ──
     corpus_block = entry.find(class_="assetlink")
-    if not corpus_block:
-        corpus_block = soup.find("div", class_="assetlink")
     if corpus_block:
         for exa in corpus_block.find_all(class_="exa"):
             ex: dict = {"en_txt": "", "cn_txt": "", "audio": ""}
             spk = exa.find("a", class_="exafile")
             if spk and spk.get("href"):
                 ex["audio"] = extract_sound_path(spk["href"])
-            text = get_text_clean(exa).strip().lstrip("•").strip()
+            text = _normalize_apostrophe(
+                get_text_clean(exa).strip().lstrip("•").strip()
+            )
             ex["en_txt"] = text
             if text:
                 result["corpus_examples"].append(ex)
 
-    # ── 词族 ──
-    wf_block = soup.find(class_="LDOCE_word_family")
+    # ── 词族（词条级） ──
+    wf_block = entry.find(class_="LDOCE_word_family")
     if wf_block:
         family_out = []
         current = {"pos": "", "words": []}
@@ -225,7 +194,7 @@ def parse_ldoce5(raw_html: str, word: str) -> dict:
         result["word_family"] = family_out
 
     # ── 词源 ──
-    etym = soup.find(class_="etym")
+    etym = entry.find(class_="etym")
     if etym:
         sense_tag = etym.find(class_="Sense")
         result["etym"] = get_text_clean(sense_tag).strip() if sense_tag else ""
@@ -233,14 +202,99 @@ def parse_ldoce5(raw_html: str, word: str) -> dict:
     return result
 
 
+def parse_ldoce5(raw_html: str, word: str) -> dict:
+    """
+    解析朗文5 HTML，支持多词性（如 date 同时有名词和动词词条）。
+
+    输出格式：
+    {
+      word: str,
+      entries: [
+        { word, pos, gram, register, pron, senses, corpus_examples, word_family, etym },
+        ...   ← 每个词性一个 entry
+      ],
+      word_family: [...],       ← 顶层共用词族（如有）
+      corpus_examples: [...],   ← 顶层共用语料库（如有）
+    }
+    """
+    soup = BeautifulSoup(raw_html, "html.parser")
+
+    all_entries = soup.find_all(class_="ldoceEntry")
+
+    if not all_entries:
+        # 可能是重定向词条（@word）
+        return {
+            "word": word,
+            "entries": [],
+            "_raw_html": str(soup)[:500],
+        }
+
+    entries_out = [_parse_single_entry(e, word) for e in all_entries]
+
+    # ── 顶层词族（在所有 ldoceEntry 之外的） ──
+    word_family: list = []
+    wf_block = soup.find(class_="LDOCE_word_family")
+    if wf_block:
+        # 检查是否已被某个 entry 内部处理过
+        in_entry = any(
+            wf_block in list(e.descendants) for e in all_entries
+        )
+        if not in_entry:
+            current = {"pos": "", "words": []}
+            for el in wf_block.children:
+                if not hasattr(el, "get"):
+                    continue
+                cls = " ".join(el.get("class") or [])
+                txt = get_text_clean(el).strip()
+                if "pos" in cls and txt:
+                    if current["words"]:
+                        word_family.append(current)
+                    current = {"pos": txt, "words": []}
+                elif "newfamily" in cls and "pos" not in cls and txt:
+                    current["words"].append(txt)
+            if current["words"]:
+                word_family.append(current)
+
+    # ── 顶层语料库（不在任何 entry 内的） ──
+    corpus_examples: list = []
+    corpus_block = soup.find("div", class_="assetlink")
+    if corpus_block:
+        in_entry = any(
+            corpus_block in list(e.descendants) for e in all_entries
+        )
+        if not in_entry:
+            for exa in corpus_block.find_all(class_="exa"):
+                ex: dict = {"en_txt": "", "cn_txt": "", "audio": ""}
+                spk = exa.find("a", class_="exafile")
+                if spk and spk.get("href"):
+                    ex["audio"] = extract_sound_path(spk["href"])
+                text = _normalize_apostrophe(
+                    get_text_clean(exa).strip().lstrip("•").strip()
+                )
+                ex["en_txt"] = text
+                if text:
+                    corpus_examples.append(ex)
+
+    return {
+        "word": word,
+        "entries": entries_out,
+        "word_family": word_family,
+        "corpus_examples": corpus_examples,
+    }
+
+
 def extract_all_sound_paths(data: dict) -> list[str]:
     """从解析结果中收集所有音频路径"""
     paths = []
-    for p in data.get("pron", []):
-        if p.get("audio"):
-            paths.append(p["audio"])
-    for s in data.get("senses", []):
-        for ex in s.get("examples", []):
+    for entry in data.get("entries", []):
+        for p in entry.get("pron", []):
+            if p.get("audio"):
+                paths.append(p["audio"])
+        for s in entry.get("senses", []):
+            for ex in s.get("examples", []):
+                if ex.get("audio"):
+                    paths.append(ex["audio"])
+        for ex in entry.get("corpus_examples", []):
             if ex.get("audio"):
                 paths.append(ex["audio"])
     for ex in data.get("corpus_examples", []):
@@ -325,14 +379,11 @@ def extract(
             not_found.append(word)
             continue
 
-        # 解析为新格式
         parsed = parse_ldoce5(raw, word)
 
-        # 收集所有音频路径
         all_sound_paths = extract_all_sound_paths(parsed)
 
-        # 导出音频文件，并更新 parsed 里的路径为本地路径
-        path_map: dict[str, str] = {}  # original_path -> local_file
+        path_map: dict[str, str] = {}
         if mdd_extractor:
             for sp in all_sound_paths:
                 audio_bytes = mdd_extractor.get_audio(sp)
@@ -345,7 +396,6 @@ def extract(
                 else:
                     print(f"  ✗ 音频未找到: {sp}")
 
-        # 将 parsed 中所有 audio 字段替换为本地路径
         def remap(data: dict) -> dict:
             """递归替换 audio 字段"""
             if isinstance(data, dict):
@@ -356,7 +406,6 @@ def extract(
             return data
 
         parsed = remap(parsed)
-
         results.append(parsed)
 
     data_json = {
@@ -403,7 +452,7 @@ def serve(dist_dir: str = "dist", port: int = 8765):
             )
         )
         return response
-    
+
     @app.route("/audio-b64/<path:filename>")
     def audio_b64(filename):
         import base64

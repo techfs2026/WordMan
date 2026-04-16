@@ -8,6 +8,7 @@
  *   - 已在背面时：左右滑动依然切换
  *
  * 音标：正面和背面均各显示两行（英音 BrE / 美音 AmE）
+ * 取第一个词性（entries[0]）的发音用于正面展示
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react'
@@ -41,6 +42,12 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
 
   const current = words[index]
   const parsed = current ? parsedDef(current) : null
+
+  // 取第一个词性的音标（用于正面卡片展示）
+  const firstEntryPron = parsed?.entries?.[0]?.pron ?? null
+  const breEntry = firstEntryPron?.[0] ?? null
+  const ameEntry = firstEntryPron?.[1] ?? null
+  const wordAudio = breEntry?.audio || ameEntry?.audio || ''
 
   // 切换索引时重置翻转状态
   const goTo = useCallback((newIndex: number, dir: 'left' | 'right') => {
@@ -143,13 +150,6 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
     )
   }
 
-  // 取第一个有 audio 的发音备用
-  const wordAudio = parsed?.pron?.find(p => p.audio)?.audio ?? ''
-
-  // 提取英音 / 美音（分别取 pron[0] 和 pron[1]，或从 bre/ame 字段判断）
-  const breEntry = parsed?.pron?.[0] ?? null
-  const ameEntry = parsed?.pron?.[1] ?? null
-
   return (
     <div className="deck-root">
 
@@ -188,8 +188,8 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
 
               <h1 className="dc-word">{current.word}</h1>
 
-              {/* 音标：英音和美音各一行 */}
-              {parsed?.pron?.length ? (
+              {/* 音标：英音和美音各一行（取第一个词性） */}
+              {firstEntryPron?.length ? (
                 <div className="dc-pron-stack">
                   {breEntry && (
                     <div className="dc-pron-line">
@@ -225,7 +225,6 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
                       )}
                     </div>
                   )}
-                  {/* 只有一条发音记录时仍按行显示 */}
                   {!ameEntry && breEntry && !breEntry.audio && wordAudio && (
                     <div className="dc-pron-line">
                       <button
@@ -267,11 +266,11 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
           <div className="dc-face dc-back">
             <div className="dc-back-scroll" ref={backScrollRef} onClick={e => e.stopPropagation()}>
               <div className="dc-back-inner">
-                {/* 背面顶部：单词 + 英音/美音各一行 */}
+                {/* 背面顶部：单词 + 英音/美音各一行（取第一个词性） */}
                 <div className="dc-back-head">
                   <div className="dc-back-word-col">
                     <span className="dc-back-word">{current.word}</span>
-                    {parsed?.pron?.length ? (
+                    {firstEntryPron?.length ? (
                       <div className="dc-back-pron-stack">
                         {breEntry && (
                           <div className="dc-pron-line sm">
