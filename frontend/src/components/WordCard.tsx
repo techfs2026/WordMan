@@ -77,7 +77,7 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
   }, [markIfNeeded])
 
   // 背面空白处点击 → 翻回正面
-  const handleFlipToFront = useCallback((e: React.MouseEvent) => {
+  const handleFlipToFront = useCallback(() => {
     // 如果点击来自内容滚动区内部（由 stopPropagation 拦截），这里不会触发
     if (isDragging.current) return
     setFlipped(false)
@@ -176,7 +176,6 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
           {/* ── 正面：整体可点击翻转 ── */}
           <div
             className="dc-face dc-front"
-            onClick={handleFlipToFront.bind(null, {} as any)}  // unused, handled below
           >
             <div
               className="dc-front-clickable"
@@ -263,82 +262,83 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
             )}
           </div>
 
-          {/* ── 背面：外层点击 → 翻回正面，内容区阻止冒泡 ── */}
-          <div
-            className="dc-face dc-back"
-            onClick={handleFlipToFront}
-            role="button"
-            aria-label="点击返回正面"
-          >
-            {/* 内容滚动区：阻止点击冒泡，避免触发翻回 */}
+          {/* ── 背面 ── */}
+          <div className="dc-face dc-back">
+            {/* 顶部 header：在 scroll 区外，点击空白区域或翻转按钮均可翻回 */}
+            <div
+              className="dc-back-head"
+              onClick={handleFlipToFront}
+            >
+              <div className="dc-back-word-col" onClick={e => e.stopPropagation()}>
+                <span className="dc-back-word">{current.word}</span>
+                {firstEntryPron?.length ? (
+                  <div className="dc-back-pron-stack">
+                    {breEntry && (
+                      <div className="dc-pron-line sm">
+                        <span className="dc-pron-label">英</span>
+                        {(breEntry.bre ?? breEntry.ame) && (
+                          <span className="dc-pron-ipa sm">/{breEntry.bre ?? breEntry.ame}/</span>
+                        )}
+                        {breEntry.audio && (
+                          <button
+                            className={`dc-audio-btn sm ${playingFile === breEntry.audio ? 'playing' : ''}`}
+                            onClick={(e) => handlePlay(e, breEntry.audio)}
+                            aria-label="播放英音"
+                          >
+                            {playingFile === breEntry.audio ? <WaveIcon /> : <SpeakerIcon />}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {ameEntry && (
+                      <div className="dc-pron-line sm">
+                        <span className="dc-pron-label">美</span>
+                        {(ameEntry.ame ?? ameEntry.bre) && (
+                          <span className="dc-pron-ipa sm">/{ameEntry.ame ?? ameEntry.bre}/</span>
+                        )}
+                        {ameEntry.audio && (
+                          <button
+                            className={`dc-audio-btn sm ${playingFile === ameEntry.audio ? 'playing' : ''}`}
+                            onClick={(e) => handlePlay(e, ameEntry.audio)}
+                            aria-label="播放美音"
+                          >
+                            {playingFile === ameEntry.audio ? <WaveIcon /> : <SpeakerIcon />}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : wordAudio ? (
+                  <div className="dc-back-pron-stack">
+                    <div className="dc-pron-line sm">
+                      <button
+                        className={`dc-audio-btn sm ${playingFile === wordAudio ? 'playing' : ''}`}
+                        onClick={(e) => handlePlay(e, wordAudio)}
+                        aria-label="播放发音"
+                      >
+                        {playingFile === wordAudio ? <WaveIcon /> : <SpeakerIcon />}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* 翻回按钮：直接响应点击，无需额外处理（冒泡到 head 的 onClick） */}
+              <button
+                className="dc-back-flip-hint"
+                aria-label="翻回正面"
+              >
+                <FlipIcon />
+              </button>
+            </div>
+
+            {/* 内容滚动区：阻止冒泡，避免滚动时误触翻转 */}
             <div
               className="dc-back-scroll"
               ref={backScrollRef}
               onClick={e => e.stopPropagation()}
             >
               <div className="dc-back-inner">
-                {/* 背面顶部：单词 + 音标 */}
-                <div className="dc-back-head">
-                  <div className="dc-back-word-col">
-                    <span className="dc-back-word">{current.word}</span>
-                    {firstEntryPron?.length ? (
-                      <div className="dc-back-pron-stack">
-                        {breEntry && (
-                          <div className="dc-pron-line sm">
-                            <span className="dc-pron-label">英</span>
-                            {(breEntry.bre ?? breEntry.ame) && (
-                              <span className="dc-pron-ipa sm">/{breEntry.bre ?? breEntry.ame}/</span>
-                            )}
-                            {breEntry.audio && (
-                              <button
-                                className={`dc-audio-btn sm ${playingFile === breEntry.audio ? 'playing' : ''}`}
-                                onClick={(e) => handlePlay(e, breEntry.audio)}
-                                aria-label="播放英音"
-                              >
-                                {playingFile === breEntry.audio ? <WaveIcon /> : <SpeakerIcon />}
-                              </button>
-                            )}
-                          </div>
-                        )}
-                        {ameEntry && (
-                          <div className="dc-pron-line sm">
-                            <span className="dc-pron-label">美</span>
-                            {(ameEntry.ame ?? ameEntry.bre) && (
-                              <span className="dc-pron-ipa sm">/{ameEntry.ame ?? ameEntry.bre}/</span>
-                            )}
-                            {ameEntry.audio && (
-                              <button
-                                className={`dc-audio-btn sm ${playingFile === ameEntry.audio ? 'playing' : ''}`}
-                                onClick={(e) => handlePlay(e, ameEntry.audio)}
-                                aria-label="播放美音"
-                              >
-                                {playingFile === ameEntry.audio ? <WaveIcon /> : <SpeakerIcon />}
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ) : wordAudio ? (
-                      <div className="dc-back-pron-stack">
-                        <div className="dc-pron-line sm">
-                          <button
-                            className={`dc-audio-btn sm ${playingFile === wordAudio ? 'playing' : ''}`}
-                            onClick={(e) => handlePlay(e, wordAudio)}
-                            aria-label="播放发音"
-                          >
-                            {playingFile === wordAudio ? <WaveIcon /> : <SpeakerIcon />}
-                          </button>
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  {/* 翻回提示 */}
-                  <div className="dc-back-flip-hint">
-                    <FlipIcon />
-                  </div>
-                </div>
-
                 {parsed
                   ? <LdoceCard parsed={parsed} />
                   : <p className="dc-fallback">{current.definition}</p>
@@ -640,26 +640,27 @@ const deckStyles = `
   display: flex;
   flex-direction: column;
   box-shadow: 0 4px 24px rgba(26, 111, 196, 0.07);
-  cursor: pointer; /* 整个背面可点击翻回 */
-}
-.dc-back-scroll {
-  flex: 1;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  cursor: default; /* 内容区恢复默认 */
-}
-.dc-back-inner {
-  padding: 22px 20px 32px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
 }
 .dc-back-head {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding-bottom: 14px;
+  padding: 18px 20px 14px;
   border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.dc-back-scroll {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  cursor: default;
+}
+.dc-back-inner {
+  padding: 16px 20px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 .dc-back-word-col {
   display: flex;
@@ -679,7 +680,7 @@ const deckStyles = `
   gap: 5px;
 }
 
-/* 背面右上角翻回提示图标 */
+/* 背面右上角翻回按钮 */
 .dc-back-flip-hint {
   display: flex;
   align-items: center;
@@ -692,6 +693,14 @@ const deckStyles = `
   flex-shrink: 0;
   opacity: 0.6;
   margin-top: 4px;
+  background: transparent;
+  cursor: pointer;
+  transition: opacity 0.18s, border-color 0.18s;
+}
+.dc-back-flip-hint:active {
+  opacity: 1;
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .dc-fallback {

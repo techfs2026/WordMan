@@ -120,23 +120,6 @@ export function LdoceCard({ parsed }: Props) {
             </div>
           )}
 
-          {/* ── 语料库例句（词条级） ── */}
-          {(entry.corpus_examples?.length ?? 0) > 0 && (
-            <div className="lc-corpus">
-              <span className="lc-section-label">CORPUS EXAMPLES</span>
-              <ul className="lc-examples">
-                {entry.corpus_examples!.slice(0, 4).map((ex, i) => (
-                  <ExampleItem
-                    key={i}
-                    ex={ex}
-                    playingFile={playingFile}
-                    onPlay={handlePlay}
-                  />
-                ))}
-              </ul>
-            </div>
-          )}
-
           {/* ── 词族（词条级） ── */}
           {(entry.word_family?.length ?? 0) > 0 && (
             <div className="lc-family">
@@ -153,6 +136,23 @@ export function LdoceCard({ parsed }: Props) {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* ── 语料库例句（词条级） ── */}
+          {(entry.corpus_examples?.length ?? 0) > 0 && (
+            <div className="lc-corpus">
+              <span className="lc-section-label">CORPUS EXAMPLES</span>
+              <ul className="lc-examples">
+                {entry.corpus_examples!.slice(0, 4).map((ex, i) => (
+                  <ExampleItem
+                    key={i}
+                    ex={ex}
+                    playingFile={playingFile}
+                    onPlay={handlePlay}
+                  />
+                ))}
+              </ul>
             </div>
           )}
 

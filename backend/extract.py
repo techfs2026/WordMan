@@ -51,7 +51,16 @@ def get_text_clean(tag) -> str:
 
 def _normalize_apostrophe(text: str) -> str:
     """将中文弯引号 ' ' 替换为英文直引号 '"""
-    return text.replace('\u2018', "'").replace('\u2019', "'")
+    # return text.replace('\u2018', "'").replace('\u2019', "'")
+    return ( 
+        text
+        .replace('\u2018', "'")
+        .replace('\u2019', "'")
+        .replace('\u201C', '"')
+        .replace('\u201D', '"')
+        .replace('＇', "'")
+        .replace('&apos;', "'")
+    )
 
 
 # ─────────────────────────────────────────────
@@ -437,6 +446,10 @@ def serve(dist_dir: str = "dist", port: int = 8765):
     @app.route("/data.json")
     def data():
         return send_from_directory(dist_dir, "data.json")
+   
+    @app.route("/dist.zip")
+    def zip_file():
+        return send_from_directory(".", "dist.zip", as_attachment=True)
 
     @app.route("/audio/<path:filename>", methods=["GET", "OPTIONS"])
     def audio(filename):

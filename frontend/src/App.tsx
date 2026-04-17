@@ -232,7 +232,7 @@ export default function App() {
                   <li>通过 AirDrop / 文件 App 将 <code>dist.zip</code> 传到手机</li>
                   <li>点击上方「选择 dist.zip」导入，完成后离线可用</li>
                 </ol>
-                <p className="tip-note">也可切换到「局域网」模式，通过 Wi-Fi 直接同步</p>
+
               </div>
             </div>
           </div>
