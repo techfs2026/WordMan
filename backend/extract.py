@@ -203,26 +203,10 @@ def _parse_single_entry(entry, word: str) -> dict:
 
 
 def parse_ldoce5(raw_html: str, word: str) -> dict:
-    """
-    解析朗文5 HTML，支持多词性（如 date 同时有名词和动词词条）。
-
-    输出格式：
-    {
-      word: str,
-      entries: [
-        { word, pos, gram, register, pron, senses, corpus_examples, word_family, etym },
-        ...   ← 每个词性一个 entry
-      ],
-      word_family: [...],       ← 顶层共用词族（如有）
-      corpus_examples: [...],   ← 顶层共用语料库（如有）
-    }
-    """
     soup = BeautifulSoup(raw_html, "html.parser")
-
     all_entries = soup.find_all(class_="ldoceEntry")
 
     if not all_entries:
-        # 可能是重定向词条（@word）
         return {
             "word": word,
             "entries": [],
@@ -231,14 +215,11 @@ def parse_ldoce5(raw_html: str, word: str) -> dict:
 
     entries_out = [_parse_single_entry(e, word) for e in all_entries]
 
-    # ── 顶层词族（在所有 ldoceEntry 之外的） ──
+    # ── 顶层词族 ──
     word_family: list = []
     wf_block = soup.find(class_="LDOCE_word_family")
     if wf_block:
-        # 检查是否已被某个 entry 内部处理过
-        in_entry = any(
-            wf_block in list(e.descendants) for e in all_entries
-        )
+        in_entry = any(wf_block in list(e.descendants) for e in all_entries)
         if not in_entry:
             current = {"pos": "", "words": []}
             for el in wf_block.children:
@@ -255,13 +236,11 @@ def parse_ldoce5(raw_html: str, word: str) -> dict:
             if current["words"]:
                 word_family.append(current)
 
-    # ── 顶层语料库（不在任何 entry 内的） ──
+    # ── 顶层语料库 ──
     corpus_examples: list = []
-    corpus_block = soup.find("div", class_="assetlink")
+    corpus_block = soup.find(class_="assetlink")
     if corpus_block:
-        in_entry = any(
-            corpus_block in list(e.descendants) for e in all_entries
-        )
+        in_entry = any(corpus_block in list(e.descendants) for e in all_entries)
         if not in_entry:
             for exa in corpus_block.find_all(class_="exa"):
                 ex: dict = {"en_txt": "", "cn_txt": "", "audio": ""}
@@ -300,7 +279,6 @@ def extract_all_sound_paths(data: dict) -> list[str]:
     for ex in data.get("corpus_examples", []):
         if ex.get("audio"):
             paths.append(ex["audio"])
-    # 去重保序
     seen = set()
     return [p for p in paths if not (p in seen or seen.add(p))]
 
@@ -380,7 +358,6 @@ def extract(
             continue
 
         parsed = parse_ldoce5(raw, word)
-
         all_sound_paths = extract_all_sound_paths(parsed)
 
         path_map: dict[str, str] = {}
@@ -397,7 +374,6 @@ def extract(
                     print(f"  ✗ 音频未找到: {sp}")
 
         def remap(data: dict) -> dict:
-            """递归替换 audio 字段"""
             if isinstance(data, dict):
                 return {k: (path_map.get(v, v) if k == "audio" and isinstance(v, str) else remap(v))
                         for k, v in data.items()}
@@ -419,11 +395,30 @@ def extract(
     )
 
     print(f"\n✅ 完成！成功: {len(results)}，未找到: {len(not_found)}")
+
+    # ── 打包成 zip ──────────────────────────────────────
+    package_zip(dist)
+
     return dist
 
 
+def package_zip(dist_dir: Path):
+    """将 dist 目录打包成 dist.zip，供 PWA 本地导入使用"""
+    import zipfile
+    zip_path = dist_dir.parent / "dist.zip"
+    print(f"\n📦 正在打包 {zip_path} ...")
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for file in dist_dir.rglob("*"):
+            if file.is_file():
+                arcname = file.relative_to(dist_dir)
+                zf.write(file, arcname)
+    size_mb = zip_path.stat().st_size / 1024 / 1024
+    print(f"✅ 打包完成：{zip_path}（{size_mb:.1f} MB）")
+    print(f"   将 dist.zip 传输到手机，在应用「同步」页面选择该文件即可导入")
+
+
 # ─────────────────────────────────────────────
-# HTTP 服务器
+# HTTP 服务器（保留，供局域网同步用）
 # ─────────────────────────────────────────────
 
 def serve(dist_dir: str = "dist", port: int = 8765):
@@ -445,13 +440,7 @@ def serve(dist_dir: str = "dist", port: int = 8765):
 
     @app.route("/audio/<path:filename>", methods=["GET", "OPTIONS"])
     def audio(filename):
-        response = make_response(
-            send_from_directory(
-                os.path.join(dist_dir, "audio"),
-                filename
-            )
-        )
-        return response
+        return make_response(send_from_directory(os.path.join(dist_dir, "audio"), filename))
 
     @app.route("/audio-b64/<path:filename>")
     def audio_b64(filename):
@@ -491,15 +480,25 @@ def serve(dist_dir: str = "dist", port: int = 8765):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mdx", required=True)
+    parser.add_argument("--mdx", required=False)
     parser.add_argument("--mdd", default=None)
     parser.add_argument("--words", default="words.txt")
     parser.add_argument("--dist", default="dist")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--serve-only", action="store_true")
+    parser.add_argument("--zip-only", action="store_true", help="仅重新打包已有 dist 目录为 zip")
     args = parser.parse_args()
 
+    if args.zip_only:
+        dist = Path(args.dist)
+        if not dist.exists():
+            print(f"❌ dist 目录不存在: {dist}"); return
+        package_zip(dist)
+        return
+
     if not args.serve_only:
+        if not args.mdx:
+            print("❌ 请提供 --mdx 参数"); return
         if not Path(args.mdx).exists():
             print(f"❌ MDX 不存在: {args.mdx}"); return
         if not Path(args.words).exists():

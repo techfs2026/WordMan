@@ -4,7 +4,7 @@
 
 import Dexie, { type Table } from 'dexie'
 
-// ── 类型定义（与 extract.py 新格式对齐）────────────────
+// ── 类型定义 ────────────────────────────────────────────
 
 export interface PronEntry {
   bre?: string
@@ -30,7 +30,6 @@ export interface WordFamilyGroup {
   words: string[]
 }
 
-/** 单个词性的数据块 */
 export interface LdoceEntry {
   word: string
   pos?: string
@@ -43,13 +42,12 @@ export interface LdoceEntry {
   etym?: string
 }
 
-/** 顶层结构，支持多词性（如 date 同时有名词和动词） */
 export interface LdoceParsed {
   word: string
   entries: LdoceEntry[]
-  word_family?: WordFamilyGroup[]    // 顶层共用词族
-  corpus_examples?: ExampleEntry[]   // 顶层共用语料库
-  _raw_html?: string                 // 解析失败时存在
+  word_family?: WordFamilyGroup[]
+  corpus_examples?: ExampleEntry[]
+  _raw_html?: string
 }
 
 export interface WordEntry {
@@ -100,7 +98,34 @@ export function parsedDef(entry: WordEntry): LdoceParsed | null {
   }
 }
 
-// ── 同步 ──────────────────────────────────────────────
+// ── 音频路径收集 ──────────────────────────────────────
+
+function collectAudioPaths(w: LdoceParsed): string[] {
+  const paths: string[] = []
+  for (const entry of w.entries ?? []) {
+    for (const p of entry.pron ?? []) if (p.audio) paths.push(p.audio)
+    for (const s of entry.senses ?? [])
+      for (const ex of s.examples ?? []) if (ex.audio) paths.push(ex.audio)
+    for (const ex of entry.corpus_examples ?? []) if (ex.audio) paths.push(ex.audio)
+  }
+  for (const ex of w.corpus_examples ?? []) if (ex.audio) paths.push(ex.audio)
+  return [...new Set(paths)]
+}
+
+// ── 写入单词到 DB（新增或更新）───────────────────────
+
+async function upsertWords(entries: WordEntry[]): Promise<void> {
+  for (const entry of entries) {
+    const existing = await db.words.where('word').equals(entry.word).first()
+    if (existing) {
+      await db.words.update(existing.id!, { definition: entry.definition })
+    } else {
+      await db.words.add(entry)
+    }
+  }
+}
+
+// ── 从 ZIP 文件同步 ───────────────────────────────────
 
 export interface SyncResult {
   words: number
@@ -108,19 +133,74 @@ export interface SyncResult {
   notFound: string[]
 }
 
-function collectAudioPaths(w: LdoceParsed): string[] {
-  const paths: string[] = []
-  // 遍历各词性 entry
-  for (const entry of w.entries ?? []) {
-    for (const p of entry.pron ?? []) if (p.audio) paths.push(p.audio)
-    for (const s of entry.senses ?? [])
-      for (const ex of s.examples ?? []) if (ex.audio) paths.push(ex.audio)
-    for (const ex of entry.corpus_examples ?? []) if (ex.audio) paths.push(ex.audio)
+export async function syncFromZip(
+  file: File,
+  onProgress?: (msg: string, pct: number) => void,
+): Promise<SyncResult> {
+  const report = (msg: string, pct: number) => onProgress?.(msg, pct)
+
+  // 动态加载 JSZip
+  report('加载解压库…', 2)
+  // @ts-ignore
+  const JSZip = (await import('jszip')).default
+
+  report('读取文件…', 5)
+  const zip = await JSZip.loadAsync(file)
+
+  // 读取 data.json
+  report('解析词典数据…', 10)
+  const dataFile = zip.file('data.json')
+  if (!dataFile) throw new Error('ZIP 中未找到 data.json，请确认文件格式正确')
+  const dataText = await dataFile.async('string')
+  const data = JSON.parse(dataText)
+
+  const total: number = data.words.length
+  const entries: WordEntry[] = []
+  let audioCount = 0
+
+  for (let i = 0; i < total; i++) {
+    const w: LdoceParsed = data.words[i]
+    const pct = 12 + Math.floor((i / total) * 80)
+    report(`导入音频: ${w.word} (${i + 1}/${total})`, pct)
+
+    // 导入该单词相关的所有音频
+    for (const filePath of collectAudioPaths(w)) {
+      try {
+        const existing = await db.audioBlobs.get(filePath)
+        if (!existing) {
+          const audioFile = zip.file(filePath)
+          if (audioFile) {
+            const blob = await audioFile.async('blob')
+            await db.audioBlobs.put({ file: filePath, blob })
+            audioCount++
+          }
+        } else {
+          audioCount++
+        }
+      } catch {
+        console.warn(`音频导入失败: ${filePath}`)
+      }
+    }
+
+    entries.push({
+      word: w.word,
+      definition: JSON.stringify(w),
+      addedAt: Date.now(),
+      reviewCount: 0,
+    })
   }
-  // 顶层共用语料库
-  for (const ex of w.corpus_examples ?? []) if (ex.audio) paths.push(ex.audio)
-  return [...new Set(paths)]
+
+  report('写入本地数据库…', 93)
+  await upsertWords(entries)
+
+  await db.meta.put({ key: 'lastSync', value: new Date().toISOString() })
+  await db.meta.put({ key: 'syncMethod', value: 'zip' })
+
+  report('导入完成！', 100)
+  return { words: entries.length, audios: audioCount, notFound: data.not_found ?? [] }
 }
+
+// ── 从网络同步（保留）────────────────────────────────
 
 export async function syncFromServer(
   baseUrl: string,
@@ -130,9 +210,7 @@ export async function syncFromServer(
 
   report('正在下载单词数据…', 5)
   const res = await fetch(`${baseUrl}/data.json`, {
-    headers: {
-      'ngrok-skip-browser-warning': 'true'
-    }
+    headers: { 'ngrok-skip-browser-warning': 'true' }
   })
   if (!res.ok) throw new Error(`无法连接服务器: ${res.status}`)
   const data = await res.json()
@@ -154,7 +232,7 @@ export async function syncFromServer(
             headers: { 'ngrok-skip-browser-warning': 'true' }
           })
           if (r.ok) {
-            const { data } = await r.json()          // data 是 base64 data URL
+            const { data } = await r.json()
             const blob = await (await fetch(data)).blob()
             await db.audioBlobs.put({ file: filePath, blob })
           }
@@ -174,17 +252,11 @@ export async function syncFromServer(
   }
 
   report('写入本地数据库…', 92)
-  for (const entry of entries) {
-    const existing = await db.words.where('word').equals(entry.word).first()
-    if (existing) {
-      await db.words.update(existing.id!, { definition: entry.definition })
-    } else {
-      await db.words.add(entry)
-    }
-  }
+  await upsertWords(entries)
 
   await db.meta.put({ key: 'lastSync', value: new Date().toISOString() })
   await db.meta.put({ key: 'serverUrl', value: baseUrl })
+  await db.meta.put({ key: 'syncMethod', value: 'network' })
 
   report('同步完成！', 100)
   return { words: entries.length, audios: audioCount, notFound: data.not_found ?? [] }
@@ -219,8 +291,9 @@ export async function markReviewed(id: number): Promise<void> {
   })
 }
 
-export async function getLastSyncInfo(): Promise<{ time: string | null; url: string | null }> {
-  const time = await db.meta.get('lastSync')
-  const url  = await db.meta.get('serverUrl')
-  return { time: time?.value ?? null, url: url?.value ?? null }
+export async function getLastSyncInfo(): Promise<{ time: string | null; url: string | null; method: string | null }> {
+  const time   = await db.meta.get('lastSync')
+  const url    = await db.meta.get('serverUrl')
+  const method = await db.meta.get('syncMethod')
+  return { time: time?.value ?? null, url: url?.value ?? null, method: method?.value ?? null }
 }

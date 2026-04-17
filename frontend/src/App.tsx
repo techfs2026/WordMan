@@ -1,24 +1,35 @@
 /**
  * App.tsx — 主应用
- * 今日学习 / 复习 / 同步，学习和复习模式均使用全屏 swipe 卡片
  */
 
 import { useState, useEffect, useCallback } from 'react'
 import { WordCardDeck } from './components/WordCard'
 import { SyncPanel } from './components/SyncPanel'
-import { getAllWords, markReviewed } from './services/db'
+import { getAllWords } from './services/db'
 import type { WordEntry } from './services/db'
 
 type Tab = 'study' | 'review' | 'sync'
 
-export default function App() {
-  const [tab, setTab]         = useState<Tab>('study')
-  const [words, setWords]     = useState<WordEntry[]>([])
-  const [loading, setLoading] = useState(true)
-  const [online, setOnline]   = useState(navigator.onLine)
-  // 复习模式：选中的日期分组
-  const [reviewDate, setReviewDate] = useState<string | null>(null)
+type AppState = {
+  tab: Tab
 
+  study: {
+    index: number
+    date: string
+  }
+
+  review: {
+    date: string | null
+    index: number
+  }
+
+  updatedAt: number
+}
+
+export default function App() {
+  const [words, setWords] = useState<WordEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [online, setOnline] = useState(navigator.onLine)
   const loadWords = useCallback(async () => {
     setLoading(true)
     setWords(await getAllWords())
@@ -27,30 +38,115 @@ export default function App() {
 
   useEffect(() => {
     loadWords()
-    const on  = () => setOnline(true)
+    const on = () => setOnline(true)
     const off = () => setOnline(false)
-    window.addEventListener('online',  on)
+    window.addEventListener('online', on)
     window.addEventListener('offline', off)
     return () => {
-      window.removeEventListener('online',  on)
+      window.removeEventListener('online', on)
       window.removeEventListener('offline', off)
     }
   }, [loadWords])
 
-  const handleReviewed = useCallback(async (id: number) => {
-    await markReviewed(id)
-    // 更新本地 state（不重新全量查询）
-    setWords(prev => prev.map(w =>
-      w.id === id ? { ...w, reviewCount: (w.reviewCount ?? 0) + 1, lastReviewAt: Date.now() } : w
-    ))
+  const todayStr = new Date().toDateString()
+  const todayWords = words.filter(w => new Date(w.addedAt).toDateString() === todayStr)
+  const histWords = words.filter(w => new Date(w.addedAt).toDateString() !== todayStr)
+
+  const reviewedToday = todayWords.filter(w => (w.reviewCount ?? 0) > 0).length
+
+  const [appState, setAppState] = useState<AppState>(() => {
+    try {
+      const raw = localStorage.getItem('word_app_state')
+      if (raw) return JSON.parse(raw)
+
+      return {
+        tab: 'study',
+        study: { index: 0, date: todayStr },
+        review: { date: null, index: 0 },
+        updatedAt: Date.now()
+      }
+    } catch {
+      return {
+        tab: 'study',
+        study: { index: 0, date: todayStr },
+        review: { date: null, index: 0 },
+        updatedAt: Date.now()
+      }
+    }
+  })
+  const updateState = (patch: Partial<AppState>) => {
+    setAppState(prev => {
+      const next = {
+        ...prev,
+        ...patch,
+        updatedAt: Date.now()
+      }
+
+      localStorage.setItem('word_app_state', JSON.stringify(next))
+      return next
+    })
+  }
+
+  const tab = appState.tab
+
+  const handleStudyIndexChange = useCallback((idx: number) => {
+    updateState({
+      study: {
+        index: idx,
+        date: todayStr
+      }
+    })
+  }, [todayStr])
+
+  const reviewDate = appState.review.date
+
+  const handleReviewDateSelect = useCallback((date: string) => {
+    const saved = localStorage.getItem(`reviewIndex_${date}`)
+    const idx = saved ? parseInt(saved, 10) : 0
+
+    updateState({
+      review: {
+        date,
+        index: idx
+      }
+    })
   }, [])
 
-  const todayStr   = new Date().toDateString()
-  const todayWords = words.filter(w => new Date(w.addedAt).toDateString() === todayStr)
-  const histWords  = words.filter(w => new Date(w.addedAt).toDateString() !== todayStr)
+  const handleReviewDateClear = useCallback(() => {
+    updateState({
+      review: {
+        date: null,
+        index: 0
+      }
+    })
+  }, [])
 
-  // 今日进度
-  const reviewedToday = todayWords.filter(w => (w.reviewCount ?? 0) > 0).length
+  const handleReviewIndexChange = useCallback((idx: number) => {
+    if (!appState.review.date) return
+
+    localStorage.setItem(
+      `reviewIndex_${appState.review.date}`,
+      String(idx)
+    )
+
+    updateState({
+      review: {
+        date: appState.review.date,
+        index: idx
+      }
+    })
+  }, [appState.review.date])
+
+  useEffect(() => {
+    if (appState.study.date !== todayStr) {
+      updateState({
+        study: {
+          index: 0,
+          date: todayStr
+        }
+      })
+    }
+  }, [todayStr])
 
   return (
     <div className="app">
@@ -82,58 +178,61 @@ export default function App() {
       <main className="app-main">
         {tab === 'study' && (
           loading ? <LoadingState /> :
-          todayWords.length === 0 ? (
-            <EmptyState icon="📚" title="今日暂无单词"
-              desc={'先去「同步」拉取数据\n昨天的单词在「复习」里'} />
-          ) : (
-            <WordCardDeck
-              words={todayWords}
-              onReviewed={handleReviewed}
-            />
-          )
+            todayWords.length === 0 ? (
+              <EmptyState icon="📚" title="今日暂无单词"
+                desc={'先去「同步」导入数据\n昨天的单词在「复习」里'} />
+            ) : (
+              <WordCardDeck
+                words={todayWords}
+                initialIndex={appState.study.index}
+                onIndexChange={handleStudyIndexChange}
+              />
+            )
         )}
 
         {tab === 'review' && (
           loading ? <LoadingState /> :
-          histWords.length === 0 ? (
-            <EmptyState icon="🗂" title="暂无历史记录"
-              desc={'同步单词后\n第二天起会出现在这里'} />
-          ) : reviewDate === null ? (
-            <ReviewDateList
-              words={histWords}
-              onSelect={setReviewDate}
-            />
-          ) : (
-            <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <button className="back-btn" onClick={() => setReviewDate(null)}>
-                ← 返回列表
-              </button>
-              <div style={{ flex: 1, minHeight: 0 }}>
-                <WordCardDeck
-                  words={histWords.filter(w => {
-                    const d = new Date(w.addedAt)
-                    const k = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
-                    return k === reviewDate
-                  })}
-                  onReviewed={handleReviewed}
-                />
+            histWords.length === 0 ? (
+              <EmptyState icon="🗂" title="暂无历史记录"
+                desc={'同步单词后\n第二天起会出现在这里'} />
+            ) : reviewDate === null ? (
+              <ReviewDateList
+                words={histWords}
+                onSelect={handleReviewDateSelect}
+              />
+            ) : (
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <button className="back-btn" onClick={handleReviewDateClear}>
+                  ← 返回列表
+                </button>
+                <div style={{ flex: 1, minHeight: 0 }}>
+                  <WordCardDeck
+                    words={histWords.filter(w => {
+                      const d = new Date(w.addedAt)
+                      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+                      return k === reviewDate
+                    })}
+                    initialIndex={appState.review.index}
+                    onIndexChange={handleReviewIndexChange}
+                  />
+                </div>
               </div>
-            </div>
-          )
+            )
         )}
 
         {tab === 'sync' && (
           <div className="view-container">
             <div className="sync-view-inner">
-              <SyncPanel onSyncComplete={() => { loadWords(); setTab('study') }} />
+              <SyncPanel onSyncComplete={() => { loadWords(); updateState({ tab: 'study' }) }} />
               <div className="sync-tips animate-fade-up">
                 <p className="tip-title">使用步骤</p>
                 <ol className="tip-list">
                   <li>Mac 上运行 <code>python extract.py --mdx 词典.mdx --mdd 词典.mdd</code></li>
-                  <li>终端显示局域网地址，如 <code>http://192.168.1.5:8765</code></li>
-                  <li>手机连同一 Wi-Fi，在此输入地址点击同步</li>
-                  <li>同步完成后地铁断网也可正常使用</li>
+                  <li>脚本自动生成 <code>dist.zip</code>（含单词和音频）</li>
+                  <li>通过 AirDrop / 文件 App 将 <code>dist.zip</code> 传到手机</li>
+                  <li>点击上方「选择 dist.zip」导入，完成后离线可用</li>
                 </ol>
+                <p className="tip-note">也可切换到「局域网」模式，通过 Wi-Fi 直接同步</p>
               </div>
             </div>
           </div>
@@ -144,14 +243,14 @@ export default function App() {
       <nav className="tab-bar">
         <div className="tab-bar-inner">
           {([
-            { key: 'study',  label: '今日',  icon: <StudyIcon  /> },
-            { key: 'review', label: '复习',  icon: <ReviewIcon /> },
-            { key: 'sync',   label: '同步',  icon: <SyncIcon   /> },
+            { key: 'study', label: '今日', icon: <StudyIcon /> },
+            { key: 'review', label: '复习', icon: <ReviewIcon /> },
+            { key: 'sync', label: '同步', icon: <SyncIcon /> },
           ] as const).map(({ key, label, icon }) => (
             <button
               key={key}
               className={`tab-btn ${tab === key ? 'active' : ''}`}
-              onClick={() => { setTab(key); if (key === 'review') setReviewDate(null) }}
+              onClick={() => updateState({ tab: key })}
             >
               {icon}
               <span>{label}</span>
@@ -176,8 +275,8 @@ function ReviewDateList({
 }) {
   const grouped = words.reduce<Record<string, WordEntry[]>>((acc, w) => {
     const d = new Date(w.addedAt)
-    const k = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
-    ;(acc[k] ??= []).push(w)
+    const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      ; (acc[k] ??= []).push(w)
     return acc
   }, {})
 
@@ -224,7 +323,7 @@ function LoadingState() {
   return (
     <div className="center-state">
       <div className="loading-dots">
-        {[0,1,2].map(i => (
+        {[0, 1, 2].map(i => (
           <div key={i} className="dot animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
         ))}
       </div>
@@ -243,8 +342,8 @@ function EmptyState({ icon, title, desc }: { icon: string; title: string; desc: 
 }
 
 function formatDateLabel(dateStr: string): string {
-  const d         = new Date(dateStr)
-  const today     = new Date()
+  const d = new Date(dateStr)
+  const today = new Date()
   const yesterday = new Date(today)
   yesterday.setDate(yesterday.getDate() - 1)
   if (d.toDateString() === yesterday.toDateString()) return '昨天'
@@ -258,25 +357,25 @@ function formatDateLabel(dateStr: string): string {
 function StudyIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
     </svg>
   )
 }
 function ReviewIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="23 4 23 10 17 10"/>
-      <polyline points="1 20 1 14 7 14"/>
-      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+      <polyline points="23 4 23 10 17 10" />
+      <polyline points="1 20 1 14 7 14" />
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
     </svg>
   )
 }
 function SyncIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="12" y1="5" x2="12" y2="19"/>
-      <line x1="5" y1="12" x2="19" y2="12"/>
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
     </svg>
   )
 }
@@ -296,7 +395,6 @@ const appStyles = `
 
 .status-bar-fill {
   height: var(--safe-top);
-  min-height: env(safe-area-inset-top, 0px);
   background: var(--bg);
   flex-shrink: 0;
 }
@@ -377,6 +475,8 @@ const appStyles = `
   flex: 1;
   overflow: hidden;
   position: relative;
+  /* 确保主内容区撑满剩余空间，tab bar 始终在底部 */
+  min-height: 0;
 }
 
 /* 返回按钮（复习模式） */
@@ -395,7 +495,7 @@ const appStyles = `
 }
 .back-btn:active { color: var(--accent); }
 
-/* view-container（同步页 / 日期列表用） */
+/* view-container */
 .view-container {
   position: absolute;
   inset: 0;
@@ -477,6 +577,9 @@ const appStyles = `
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--bg-raised);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 .tip-title {
   font-family: var(--font-mono);
@@ -484,13 +587,13 @@ const appStyles = `
   letter-spacing: 0.15em;
   color: var(--text-muted);
   text-transform: uppercase;
-  margin-bottom: 10px;
 }
 .tip-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding-left: 1.2em;
+  margin: 0;
 }
 .tip-list li {
   font-size: 13px;
@@ -505,6 +608,13 @@ const appStyles = `
   border-radius: 4px;
   color: var(--accent);
   border: 1px solid var(--border);
+}
+.tip-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
 }
 
 /* 加载 / 空状态 */
@@ -538,7 +648,7 @@ const appStyles = `
   white-space: pre-line;
 }
 
-/* Tab Bar */
+/* Tab Bar — 关键：flex-shrink: 0 确保不被压缩，padding-bottom 留出 home indicator 空间 */
 .tab-bar {
   flex-shrink: 0;
   padding-bottom: var(--safe-bottom);

@@ -4,11 +4,9 @@
  *
  * 手势设计：
  *   - 左右滑动 → 切换上一张/下一张
- *   - 点击卡片 → 翻转查看释义（翻转后可上下滚动）
+ *   - 点击正面 → 翻转查看释义
+ *   - 点击背面空白处 → 翻回正面（内容区点击不触发）
  *   - 已在背面时：左右滑动依然切换
- *
- * 音标：正面和背面均各显示两行（英音 BrE / 美音 AmE）
- * 取第一个词性（entries[0]）的发音用于正面展示
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react'
@@ -23,7 +21,7 @@ interface Props {
   onIndexChange?: (index: number) => void
 }
 
-const SWIPE_THRESHOLD = 50   // px，水平滑动超过此值才切换
+const SWIPE_THRESHOLD = 50
 
 export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChange }: Props) {
   const [index, setIndex] = useState(initialIndex)
@@ -32,7 +30,6 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
   const [animating, setAnimating] = useState(false)
   const [playingFile, setPlayingFile] = useState<string | null>(null)
 
-  // touch state
   const touchStartX = useRef(0)
   const touchStartY = useRef(0)
   const touchDeltaX = useRef(0)
@@ -43,13 +40,11 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
   const current = words[index]
   const parsed = current ? parsedDef(current) : null
 
-  // 取第一个词性的音标（用于正面卡片展示）
   const firstEntryPron = parsed?.entries?.[0]?.pron ?? null
   const breEntry = firstEntryPron?.[0] ?? null
   const ameEntry = firstEntryPron?.[1] ?? null
   const wordAudio = breEntry?.audio || ameEntry?.audio || ''
 
-  // 切换索引时重置翻转状态
   const goTo = useCallback((newIndex: number, dir: 'left' | 'right') => {
     if (animating || newIndex < 0 || newIndex >= words.length) return
     setDirection(dir)
@@ -65,27 +60,28 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
   }, [animating, words.length, onIndexChange])
 
   const goPrev = useCallback(() => goTo(index - 1, 'right'), [index, goTo])
-  const goNext = useCallback(() => {
-    goTo(index + 1, 'left')
-  }, [index, goTo])
+  const goNext = useCallback(() => goTo(index + 1, 'left'), [index, goTo])
 
-  // 标记复习
   const markIfNeeded = useCallback(() => {
     if (current?.id != null && (current.reviewCount ?? 0) === 0) {
       onReviewed?.(current.id)
     }
   }, [current, onReviewed])
 
-  const handleFlip = useCallback(() => {
+  // 正面点击 → 翻到背面
+  const handleFlipToBack = useCallback(() => {
     if (isDragging.current) return
-    setFlipped(f => {
-      if (!f) {
-        markIfNeeded()
-        setTimeout(() => { backScrollRef.current?.scrollTo({ top: 0 }) }, 0)
-      }
-      return !f
-    })
+    markIfNeeded()
+    setFlipped(true)
+    setTimeout(() => { backScrollRef.current?.scrollTo({ top: 0 }) }, 0)
   }, [markIfNeeded])
+
+  // 背面空白处点击 → 翻回正面
+  const handleFlipToFront = useCallback((e: React.MouseEvent) => {
+    // 如果点击来自内容滚动区内部（由 stopPropagation 拦截），这里不会触发
+    if (isDragging.current) return
+    setFlipped(false)
+  }, [])
 
   // ── 触摸事件 ───────────────────────────────────────────
   const onTouchStart = useCallback((e: React.TouchEvent) => {
@@ -128,11 +124,11 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') goPrev()
       if (e.key === 'ArrowRight') goNext()
-      if (e.key === ' ') handleFlip()
+      if (e.key === ' ') setFlipped(f => !f)
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [goPrev, goNext, handleFlip])
+  }, [goPrev, goNext])
 
   const handlePlay = useCallback(async (e: React.MouseEvent, file: string) => {
     e.stopPropagation()
@@ -159,8 +155,7 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
           {words.map((_, i) => (
             <div
               key={i}
-              className={`deck-dot ${i === index ? 'active' : ''} ${(words[i].reviewCount ?? 0) > 0 ? 'reviewed' : ''
-                }`}
+              className={`deck-dot ${i === index ? 'active' : ''} ${(words[i].reviewCount ?? 0) > 0 ? 'reviewed' : ''}`}
             />
           ))}
         </div>
@@ -177,55 +172,73 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
       >
         <div
           className={`deck-card ${flipped ? 'flipped' : ''}`}
-          onClick={handleFlip}
-          role="button"
-          aria-label={flipped ? '点击回到正面' : '点击查看释义'}
         >
-          {/* ── 正面 ── */}
-          <div className="dc-face dc-front">
-            <div className="dc-front-inner">
-              <span className="dc-tag">WORD</span>
+          {/* ── 正面：整体可点击翻转 ── */}
+          <div
+            className="dc-face dc-front"
+            onClick={handleFlipToFront.bind(null, {} as any)}  // unused, handled below
+          >
+            <div
+              className="dc-front-clickable"
+              onClick={handleFlipToBack}
+              role="button"
+              aria-label="点击查看释义"
+            >
+              <div className="dc-front-inner">
+                <span className="dc-tag">WORD</span>
 
-              <h1 className="dc-word">{current.word}</h1>
+                <h1 className="dc-word">{current.word}</h1>
 
-              {/* 音标：英音和美音各一行（取第一个词性） */}
-              {firstEntryPron?.length ? (
-                <div className="dc-pron-stack">
-                  {breEntry && (
-                    <div className="dc-pron-line">
-                      <span className="dc-pron-label">英</span>
-                      {(breEntry.bre ?? breEntry.ame) && (
-                        <span className="dc-pron-ipa">/{breEntry.bre ?? breEntry.ame}/</span>
-                      )}
-                      {breEntry.audio && (
+                {firstEntryPron?.length ? (
+                  <div className="dc-pron-stack">
+                    {breEntry && (
+                      <div className="dc-pron-line">
+                        <span className="dc-pron-label">英</span>
+                        {(breEntry.bre ?? breEntry.ame) && (
+                          <span className="dc-pron-ipa">/{breEntry.bre ?? breEntry.ame}/</span>
+                        )}
+                        {breEntry.audio && (
+                          <button
+                            className={`dc-audio-btn ${playingFile === breEntry.audio ? 'playing' : ''}`}
+                            onClick={(e) => handlePlay(e, breEntry.audio)}
+                            aria-label="播放英音"
+                          >
+                            {playingFile === breEntry.audio ? <WaveIcon /> : <SpeakerIcon />}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {ameEntry && (
+                      <div className="dc-pron-line">
+                        <span className="dc-pron-label">美</span>
+                        {(ameEntry.ame ?? ameEntry.bre) && (
+                          <span className="dc-pron-ipa">/{ameEntry.ame ?? ameEntry.bre}/</span>
+                        )}
+                        {ameEntry.audio && (
+                          <button
+                            className={`dc-audio-btn ${playingFile === ameEntry.audio ? 'playing' : ''}`}
+                            onClick={(e) => handlePlay(e, ameEntry.audio)}
+                            aria-label="播放美音"
+                          >
+                            {playingFile === ameEntry.audio ? <WaveIcon /> : <SpeakerIcon />}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {!ameEntry && breEntry && !breEntry.audio && wordAudio && (
+                      <div className="dc-pron-line">
                         <button
-                          className={`dc-audio-btn ${playingFile === breEntry.audio ? 'playing' : ''}`}
-                          onClick={(e) => handlePlay(e, breEntry.audio)}
-                          aria-label="播放英音"
+                          className={`dc-audio-btn ${playingFile === wordAudio ? 'playing' : ''}`}
+                          onClick={(e) => handlePlay(e, wordAudio)}
+                          aria-label="播放发音"
                         >
-                          {playingFile === breEntry.audio ? <WaveIcon /> : <SpeakerIcon />}
+                          {playingFile === wordAudio ? <WaveIcon /> : <SpeakerIcon />}
                         </button>
-                      )}
-                    </div>
-                  )}
-                  {ameEntry && (
-                    <div className="dc-pron-line">
-                      <span className="dc-pron-label">美</span>
-                      {(ameEntry.ame ?? ameEntry.bre) && (
-                        <span className="dc-pron-ipa">/{ameEntry.ame ?? ameEntry.bre}/</span>
-                      )}
-                      {ameEntry.audio && (
-                        <button
-                          className={`dc-audio-btn ${playingFile === ameEntry.audio ? 'playing' : ''}`}
-                          onClick={(e) => handlePlay(e, ameEntry.audio)}
-                          aria-label="播放美音"
-                        >
-                          {playingFile === ameEntry.audio ? <WaveIcon /> : <SpeakerIcon />}
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  {!ameEntry && breEntry && !breEntry.audio && wordAudio && (
+                      </div>
+                    )}
+                  </div>
+                ) : wordAudio ? (
+                  <div className="dc-pron-stack">
                     <div className="dc-pron-line">
                       <button
                         className={`dc-audio-btn ${playingFile === wordAudio ? 'playing' : ''}`}
@@ -235,25 +248,13 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
                         {playingFile === wordAudio ? <WaveIcon /> : <SpeakerIcon />}
                       </button>
                     </div>
-                  )}
-                </div>
-              ) : wordAudio ? (
-                <div className="dc-pron-stack">
-                  <div className="dc-pron-line">
-                    <button
-                      className={`dc-audio-btn ${playingFile === wordAudio ? 'playing' : ''}`}
-                      onClick={(e) => handlePlay(e, wordAudio)}
-                      aria-label="播放发音"
-                    >
-                      {playingFile === wordAudio ? <WaveIcon /> : <SpeakerIcon />}
-                    </button>
                   </div>
-                </div>
-              ) : null}
+                ) : null}
 
-              <div className="dc-flip-hint">
-                <FlipIcon />
-                <span>点击翻转查看释义</span>
+                <div className="dc-flip-hint">
+                  <FlipIcon />
+                  <span>点击翻转查看释义</span>
+                </div>
               </div>
             </div>
 
@@ -262,11 +263,21 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
             )}
           </div>
 
-          {/* ── 背面 ── */}
-          <div className="dc-face dc-back">
-            <div className="dc-back-scroll" ref={backScrollRef} onClick={e => e.stopPropagation()}>
+          {/* ── 背面：外层点击 → 翻回正面，内容区阻止冒泡 ── */}
+          <div
+            className="dc-face dc-back"
+            onClick={handleFlipToFront}
+            role="button"
+            aria-label="点击返回正面"
+          >
+            {/* 内容滚动区：阻止点击冒泡，避免触发翻回 */}
+            <div
+              className="dc-back-scroll"
+              ref={backScrollRef}
+              onClick={e => e.stopPropagation()}
+            >
               <div className="dc-back-inner">
-                {/* 背面顶部：单词 + 英音/美音各一行（取第一个词性） */}
+                {/* 背面顶部：单词 + 音标 */}
                 <div className="dc-back-head">
                   <div className="dc-back-word-col">
                     <span className="dc-back-word">{current.word}</span>
@@ -320,6 +331,11 @@ export function WordCardDeck({ words, initialIndex = 0, onReviewed, onIndexChang
                         </div>
                       </div>
                     ) : null}
+                  </div>
+
+                  {/* 翻回提示 */}
+                  <div className="dc-back-flip-hint">
+                    <FlipIcon />
                   </div>
                 </div>
 
@@ -394,7 +410,6 @@ function FlipIcon() {
 // ── 样式 ─────────────────────────────────────────────
 
 const deckStyles = `
-/* 根容器 */
 .deck-root {
   display: flex;
   flex-direction: column;
@@ -452,7 +467,6 @@ const deckStyles = `
   height: 100%;
   transform-style: preserve-3d;
   transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-  cursor: pointer;
 }
 .deck-card.flipped { transform: rotateY(180deg); }
 
@@ -474,6 +488,7 @@ const deckStyles = `
   justify-content: center;
   background: linear-gradient(145deg, #ffffff 0%, #eaf2fb 100%);
   box-shadow: 0 4px 24px rgba(26, 111, 196, 0.08);
+  cursor: pointer;
 }
 .dc-front::before {
   content: '';
@@ -483,6 +498,16 @@ const deckStyles = `
   pointer-events: none;
 }
 
+/* 正面可点击区域（覆盖整个正面） */
+.dc-front-clickable {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
 .dc-front-inner {
   display: flex;
   flex-direction: column;
@@ -490,6 +515,12 @@ const deckStyles = `
   gap: 16px;
   padding: 48px 28px 40px;
   width: 100%;
+  pointer-events: none; /* 让点击穿透到 clickable 层 */
+}
+
+/* 但音频按钮需要自己响应点击 */
+.dc-front-inner .dc-audio-btn {
+  pointer-events: auto;
 }
 
 .dc-tag {
@@ -509,7 +540,6 @@ const deckStyles = `
   line-height: 1.1;
 }
 
-/* 音标：竖排两行 */
 .dc-pron-stack {
   display: flex;
   flex-direction: column;
@@ -600,6 +630,7 @@ const deckStyles = `
   align-items: center;
   justify-content: center;
   opacity: 0.85;
+  pointer-events: none;
 }
 
 /* 背面 */
@@ -609,11 +640,13 @@ const deckStyles = `
   display: flex;
   flex-direction: column;
   box-shadow: 0 4px 24px rgba(26, 111, 196, 0.07);
+  cursor: pointer; /* 整个背面可点击翻回 */
 }
 .dc-back-scroll {
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  cursor: default; /* 内容区恢复默认 */
 }
 .dc-back-inner {
   padding: 22px 20px 32px;
@@ -645,6 +678,22 @@ const deckStyles = `
   flex-direction: column;
   gap: 5px;
 }
+
+/* 背面右上角翻回提示图标 */
+.dc-back-flip-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  flex-shrink: 0;
+  opacity: 0.6;
+  margin-top: 4px;
+}
+
 .dc-fallback {
   font-size: 14px;
   color: var(--text-secondary);
@@ -652,7 +701,7 @@ const deckStyles = `
   white-space: pre-wrap;
 }
 
-/* 左右导航（桌面可见，手机隐藏） */
+/* 左右导航（桌面） */
 .deck-nav {
   display: none;
   gap: 12px;
@@ -682,7 +731,6 @@ const deckStyles = `
   cursor: default;
 }
 
-/* 空状态 */
 .deck-empty {
   display: flex;
   align-items: center;
