@@ -12,17 +12,8 @@ type Tab = 'study' | 'review' | 'sync'
 
 type AppState = {
   tab: Tab
-
-  study: {
-    index: number
-    date: string
-  }
-
-  review: {
-    date: string | null
-    index: number
-  }
-
+  study: { index: number; date: string }
+  review: { date: string | null; index: number }
   updatedAt: number
 }
 
@@ -30,6 +21,7 @@ export default function App() {
   const [words, setWords] = useState<WordEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [online, setOnline] = useState(navigator.onLine)
+
   const loadWords = useCallback(async () => {
     setLoading(true)
     setWords(await getAllWords())
@@ -50,38 +42,25 @@ export default function App() {
 
   const todayStr = new Date().toDateString()
   const todayWords = words.filter(w => new Date(w.addedAt).toDateString() === todayStr)
-  const histWords = words.filter(w => new Date(w.addedAt).toDateString() !== todayStr)
-
+  const histWords  = words.filter(w => new Date(w.addedAt).toDateString() !== todayStr)
   const reviewedToday = todayWords.filter(w => (w.reviewCount ?? 0) > 0).length
 
   const [appState, setAppState] = useState<AppState>(() => {
     try {
       const raw = localStorage.getItem('word_app_state')
       if (raw) return JSON.parse(raw)
-
-      return {
-        tab: 'study',
-        study: { index: 0, date: todayStr },
-        review: { date: null, index: 0 },
-        updatedAt: Date.now()
-      }
-    } catch {
-      return {
-        tab: 'study',
-        study: { index: 0, date: todayStr },
-        review: { date: null, index: 0 },
-        updatedAt: Date.now()
-      }
+    } catch {}
+    return {
+      tab: 'study',
+      study: { index: 0, date: todayStr },
+      review: { date: null, index: 0 },
+      updatedAt: Date.now(),
     }
   })
+
   const updateState = (patch: Partial<AppState>) => {
     setAppState(prev => {
-      const next = {
-        ...prev,
-        ...patch,
-        updatedAt: Date.now()
-      }
-
+      const next = { ...prev, ...patch, updatedAt: Date.now() }
       localStorage.setItem('word_app_state', JSON.stringify(next))
       return next
     })
@@ -90,12 +69,7 @@ export default function App() {
   const tab = appState.tab
 
   const handleStudyIndexChange = useCallback((idx: number) => {
-    updateState({
-      study: {
-        index: idx,
-        date: todayStr
-      }
-    })
+    updateState({ study: { index: idx, date: todayStr } })
   }, [todayStr])
 
   const reviewDate = appState.review.date
@@ -103,48 +77,22 @@ export default function App() {
   const handleReviewDateSelect = useCallback((date: string) => {
     const saved = localStorage.getItem(`reviewIndex_${date}`)
     const idx = saved ? parseInt(saved, 10) : 0
-
-    updateState({
-      review: {
-        date,
-        index: idx
-      }
-    })
+    updateState({ review: { date, index: idx } })
   }, [])
 
   const handleReviewDateClear = useCallback(() => {
-    updateState({
-      review: {
-        date: null,
-        index: 0
-      }
-    })
+    updateState({ review: { date: null, index: 0 } })
   }, [])
 
   const handleReviewIndexChange = useCallback((idx: number) => {
     if (!appState.review.date) return
-
-    localStorage.setItem(
-      `reviewIndex_${appState.review.date}`,
-      String(idx)
-    )
-
-    updateState({
-      review: {
-        date: appState.review.date,
-        index: idx
-      }
-    })
+    localStorage.setItem(`reviewIndex_${appState.review.date}`, String(idx))
+    updateState({ review: { date: appState.review.date, index: idx } })
   }, [appState.review.date])
 
   useEffect(() => {
     if (appState.study.date !== todayStr) {
-      updateState({
-        study: {
-          index: 0,
-          date: todayStr
-        }
-      })
+      updateState({ study: { index: 0, date: todayStr } })
     }
   }, [todayStr])
 
@@ -174,7 +122,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* 内容区 */}
+      {/* 内容区 — 底部留出 tab bar 高度 */}
       <main className="app-main">
         {tab === 'study' && (
           loading ? <LoadingState /> :
@@ -196,15 +144,10 @@ export default function App() {
               <EmptyState icon="🗂" title="暂无历史记录"
                 desc={'同步单词后\n第二天起会出现在这里'} />
             ) : reviewDate === null ? (
-              <ReviewDateList
-                words={histWords}
-                onSelect={handleReviewDateSelect}
-              />
+              <ReviewDateList words={histWords} onSelect={handleReviewDateSelect} />
             ) : (
               <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                <button className="back-btn" onClick={handleReviewDateClear}>
-                  ← 返回列表
-                </button>
+                <button className="back-btn" onClick={handleReviewDateClear}>← 返回列表</button>
                 <div style={{ flex: 1, minHeight: 0 }}>
                   <WordCardDeck
                     words={histWords.filter(w => {
@@ -232,20 +175,19 @@ export default function App() {
                   <li>通过 AirDrop / 文件 App 将 <code>dist.zip</code> 传到手机</li>
                   <li>点击上方「选择 dist.zip」导入，完成后离线可用</li>
                 </ol>
-
               </div>
             </div>
           </div>
         )}
       </main>
 
-      {/* Tab Bar */}
+      {/* Tab Bar — position:fixed 确保 PWA 模式下也钉在底部 */}
       <nav className="tab-bar">
         <div className="tab-bar-inner">
           {([
-            { key: 'study', label: '今日', icon: <StudyIcon /> },
-            { key: 'review', label: '复习', icon: <ReviewIcon /> },
-            { key: 'sync', label: '同步', icon: <SyncIcon /> },
+            { key: 'study',  label: '今日',  icon: <StudyIcon /> },
+            { key: 'review', label: '复习',  icon: <ReviewIcon /> },
+            { key: 'sync',   label: '同步',  icon: <SyncIcon /> },
           ] as const).map(({ key, label, icon }) => (
             <button
               key={key}
@@ -266,20 +208,13 @@ export default function App() {
 
 // ── 复习日期列表 ──────────────────────────────────────────
 
-function ReviewDateList({
-  words,
-  onSelect,
-}: {
-  words: WordEntry[]
-  onSelect: (date: string) => void
-}) {
+function ReviewDateList({ words, onSelect }: { words: WordEntry[]; onSelect: (date: string) => void }) {
   const grouped = words.reduce<Record<string, WordEntry[]>>((acc, w) => {
     const d = new Date(w.addedAt)
     const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-      ; (acc[k] ??= []).push(w)
+    ;(acc[k] ??= []).push(w)
     return acc
   }, {})
-
   const keys = Object.keys(grouped).sort().reverse()
 
   return (
@@ -301,10 +236,7 @@ function ReviewDateList({
               </div>
               <div className="date-row-right">
                 <div className="date-mini-track">
-                  <div
-                    className="date-mini-fill"
-                    style={{ width: `${(done / ws.length) * 100}%` }}
-                  />
+                  <div className="date-mini-fill" style={{ width: `${(done / ws.length) * 100}%` }} />
                 </div>
                 <span className="date-row-chevron">›</span>
               </div>
@@ -333,7 +265,7 @@ function LoadingState() {
 
 function EmptyState({ icon, title, desc }: { icon: string; title: string; desc: string }) {
   return (
-    <div className="center-state animate-fade-up">
+    <div className="center-state">
       <span className="empty-icon">{icon}</span>
       <p className="empty-title">{title}</p>
       <p className="empty-desc">{desc}</p>
@@ -341,12 +273,10 @@ function EmptyState({ icon, title, desc }: { icon: string; title: string; desc: 
   )
 }
 
-function formatDateLabel(dateStr: string): string {
-  const d = new Date(dateStr)
+function formatDateLabel(dateKey: string): string {
+  const d = new Date(dateKey)
   const today = new Date()
-  const yesterday = new Date(today)
-  yesterday.setDate(yesterday.getDate() - 1)
-  if (d.toDateString() === yesterday.toDateString()) return '昨天'
+  today.setHours(0, 0, 0, 0)
   const diff = Math.floor((today.getTime() - d.getTime()) / 86400000)
   if (diff < 7) return `${diff} 天前`
   return `${d.getMonth() + 1} 月 ${d.getDate()} 日`
@@ -356,7 +286,7 @@ function formatDateLabel(dateStr: string): string {
 
 function StudyIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
       <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
     </svg>
@@ -364,7 +294,7 @@ function StudyIcon() {
 }
 function ReviewIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="23 4 23 10 17 10" />
       <polyline points="1 20 1 14 7 14" />
       <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
@@ -373,7 +303,7 @@ function ReviewIcon() {
 }
 function SyncIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <line x1="12" y1="5" x2="12" y2="19" />
       <line x1="5" y1="12" x2="19" y2="12" />
     </svg>
@@ -382,15 +312,28 @@ function SyncIcon() {
 
 // ── 样式 ─────────────────────────────────────────────────
 
+/*
+ * Tab bar 修复说明：
+ *   在 iOS PWA（添加到主屏幕）模式下，100dvh 有时无法覆盖完整视口，
+ *   导致 tab bar 被推到屏幕外。改用 position:fixed + bottom:0 是最可靠的方案。
+ *   相应地，app-main 需要 padding-bottom 留出 tab bar 高度。
+ */
+
+const TAB_BAR_HEIGHT = 56 // px，不含 safe area
+
 const appStyles = `
+/* ── 整体布局 ── */
 .app {
   display: flex;
   flex-direction: column;
-  height: 100dvh;
+  /* 使用 100svh（small viewport height）在 iOS Safari / PWA 下更可靠 */
+  height: 100svh;
+  height: 100dvh; /* 支持时优先用 dvh */
   width: 100%;
   background: var(--bg);
   max-width: 480px;
   margin: 0 auto;
+  position: relative;
 }
 
 .status-bar-fill {
@@ -399,51 +342,49 @@ const appStyles = `
   flex-shrink: 0;
 }
 
+/* ── 顶栏 ── */
 .app-header {
   display: flex;
   align-items: center;
-  padding: 10px 16px 8px;
+  padding: 10px 18px 10px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--border);
   gap: 10px;
+  background: var(--bg);
 }
 
 .app-logo {
   font-family: var(--font-display);
-  font-size: 1.4rem;
+  font-size: 1.5rem;
   color: var(--accent);
   flex-shrink: 0;
+  font-weight: 700;
 }
 
-.header-center {
-  flex: 1;
-  min-width: 0;
-}
+.header-center { flex: 1; min-width: 0; }
 
 .header-progress {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-
 .header-track {
   flex: 1;
-  height: 2px;
+  height: 3px;
   background: var(--border);
-  border-radius: 2px;
+  border-radius: 3px;
   overflow: hidden;
 }
-
 .header-fill {
   height: 100%;
   background: var(--accent);
-  border-radius: 2px;
+  border-radius: 3px;
   transition: width 0.5s ease;
 }
-
 .header-frac {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
+  font-weight: 500;
   color: var(--text-muted);
   flex-shrink: 0;
 }
@@ -454,46 +395,50 @@ const appStyles = `
   gap: 8px;
   flex-shrink: 0;
 }
-
 .offline-badge {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.08em;
-  padding: 2px 7px;
+  padding: 2px 8px;
   border-radius: 20px;
   border: 1px solid var(--border-hi);
   color: var(--text-muted);
 }
-
 .word-count {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 500;
   color: var(--text-muted);
 }
 
+/* ── 内容区 ──
+   留出底部 tab bar 的高度，避免内容被遮住。
+   tab bar 用 position:fixed，所以这里用 padding-bottom 补偿。
+*/
 .app-main {
   flex: 1;
   overflow: hidden;
   position: relative;
-  /* 确保主内容区撑满剩余空间，tab bar 始终在底部 */
   min-height: 0;
+  padding-bottom: calc(${TAB_BAR_HEIGHT}px + var(--safe-bottom));
 }
 
-/* 返回按钮（复习模式） */
+/* 返回按钮 */
 .back-btn {
   display: flex;
   align-items: center;
-  padding: 8px 16px;
-  font-size: 13px;
-  color: var(--text-secondary);
+  padding: 10px 18px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--accent);
   flex-shrink: 0;
   cursor: pointer;
   background: none;
   border: none;
   font-family: var(--font-body);
-  transition: color 0.2s;
+  transition: opacity 0.2s;
 }
-.back-btn:active { color: var(--accent); }
+.back-btn:active { opacity: 0.6; }
 
 /* view-container */
 .view-container {
@@ -504,120 +449,117 @@ const appStyles = `
   padding: 16px 16px 0;
 }
 
-/* 日期列表 */
+/* ── 日期列表 ── */
 .date-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
-
 .date-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px;
+  padding: 16px 18px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--bg-card);
   cursor: pointer;
   text-align: left;
-  transition: border-color 0.18s;
+  transition: border-color 0.18s, box-shadow 0.18s;
   width: 100%;
+  box-shadow: 0 1px 4px rgba(13,71,161,0.04);
 }
-.date-row:active { border-color: var(--accent); }
-
+.date-row:active {
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(13,71,161,0.10);
+}
 .date-row-left {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 .date-row-date {
-  font-size: 15px;
+  font-size: 16px;
+  font-weight: 500;
   color: var(--text-primary);
 }
 .date-row-count {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
 }
-
 .date-row-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 .date-mini-track {
-  width: 60px;
-  height: 2px;
+  width: 64px;
+  height: 3px;
   background: var(--border);
-  border-radius: 2px;
+  border-radius: 3px;
   overflow: hidden;
 }
 .date-mini-fill {
   height: 100%;
   background: var(--green);
-  border-radius: 2px;
+  border-radius: 3px;
 }
 .date-row-chevron {
   color: var(--text-muted);
-  font-size: 18px;
+  font-size: 20px;
   line-height: 1;
 }
 
-/* 同步视图 */
+/* ── 同步视图 ── */
 .sync-view-inner {
   display: flex;
   flex-direction: column;
   gap: 20px;
   padding-bottom: 24px;
 }
-
 .sync-tips {
-  padding: 16px 18px;
+  padding: 18px 18px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--bg-raised);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 .tip-title {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.15em;
   color: var(--text-muted);
   text-transform: uppercase;
+  font-weight: 500;
 }
 .tip-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding-left: 1.2em;
+  gap: 10px;
+  padding-left: 1.3em;
   margin: 0;
 }
 .tip-list li {
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.6;
   color: var(--text-secondary);
+  font-weight: 400;
 }
 .tip-list code {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   background: var(--bg-card);
-  padding: 1px 5px;
+  padding: 1px 6px;
   border-radius: 4px;
   color: var(--accent);
   border: 1px solid var(--border);
-}
-.tip-note {
-  font-size: 12px;
-  color: var(--text-muted);
-  line-height: 1.5;
-  padding-top: 4px;
-  border-top: 1px solid var(--border);
+  font-weight: 400;
 }
 
-/* 加载 / 空状态 */
+/* ── 加载 / 空状态 ── */
 .center-state {
   position: absolute;
   inset: 0;
@@ -625,35 +567,47 @@ const appStyles = `
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 14px;
   padding: 40px;
 }
-.loading-dots { display: flex; gap: 6px; }
+.loading-dots { display: flex; gap: 7px; }
 .dot {
-  width: 6px; height: 6px;
+  width: 7px; height: 7px;
   border-radius: 50%;
   background: var(--text-muted);
 }
-.empty-icon { font-size: 2.5rem; line-height: 1; }
+.empty-icon { font-size: 2.8rem; line-height: 1; }
 .empty-title {
   font-family: var(--font-display);
-  font-size: 1.2rem;
+  font-size: 1.25rem;
+  font-weight: 700;
   color: var(--text-secondary);
 }
 .empty-desc {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-muted);
   text-align: center;
   line-height: 1.7;
   white-space: pre-line;
 }
 
-/* Tab Bar — 关键：flex-shrink: 0 确保不被压缩，padding-bottom 留出 home indicator 空间 */
+/* ── Tab Bar ──
+   position: fixed + bottom: 0 是在 iOS PWA 模式下最可靠的方式。
+   浏览器模式下同样正常。
+*/
 .tab-bar {
-  flex-shrink: 0;
-  padding-bottom: var(--safe-bottom);
-  background: var(--bg);
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  background: rgba(255,255,255,0.96);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-top: 1px solid var(--border);
+  padding-bottom: var(--safe-bottom);
+  z-index: 100;
 }
 .tab-bar-inner {
   display: flex;
@@ -665,13 +619,19 @@ const appStyles = `
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  padding: 10px 0 8px;
+  padding: 10px 0 9px;
   color: var(--text-muted);
   transition: color 0.2s;
-  font-size: 10px;
-  letter-spacing: 0.05em;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
   cursor: pointer;
 }
-.tab-btn.active { color: var(--accent); }
-.tab-btn:active { opacity: 0.7; }
+.tab-btn.active {
+  color: var(--accent);
+}
+.tab-btn.active svg {
+  stroke: var(--accent);
+}
+.tab-btn:active { opacity: 0.65; }
 `

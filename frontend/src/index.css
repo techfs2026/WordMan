@@ -1,25 +1,25 @@
 /* ── Google Fonts ─────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400&family=Noto+Sans+SC:wght@300;400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400&family=Noto+Sans+SC:wght@400;500;700&display=swap');
 
-/* ── CSS 变量（蓝白主题） ─────────────────────────────── */
+/* ── CSS 变量（深蓝白主题） ──────────────────────────── */
 :root {
-  --bg: #f0f4f8;
+  --bg: #f5f7fa;
   --bg-card: #ffffff;
-  --bg-raised: #e8eef5;
-  --border: rgba(30, 90, 160, 0.12);
-  --border-hi: rgba(30, 90, 160, 0.25);
+  --bg-raised: #edf1f7;
+  --border: rgba(15, 40, 90, 0.10);
+  --border-hi: rgba(15, 40, 90, 0.22);
 
-  --text-primary: #0d1f35;
-  --text-secondary: #3a5a82;
-  --text-muted: #7a9abf;
+  --text-primary: #0a1628;
+  --text-secondary: #253f6b;
+  --text-muted: #6e89b0;
 
-  --accent: #1a6fc4;
-  /* 蓝色主调 */
-  --accent-dim: rgba(26, 111, 196, 0.12);
-  --accent-glow: rgba(26, 111, 196, 0.08);
+  --accent: #0d47a1;       /* 深海蓝 */
+  --accent-mid: #1565c0;
+  --accent-dim: rgba(13, 71, 161, 0.10);
+  --accent-glow: rgba(13, 71, 161, 0.07);
 
-  --red: #d94f4f;
-  --green: #2e9e6b;
+  --red: #c62828;
+  --green: #2e7d52;
 
   --radius-sm: 10px;
   --radius-md: 16px;
@@ -56,9 +56,9 @@ body {
   background: var(--bg);
   color: var(--text-primary);
   font-family: var(--font-body);
-  font-size: 17px;         /* 原 16px → 17px */
+  font-size: 18px;
   line-height: 1.65;
-  font-weight: 300;
+  font-weight: 400;
   overflow: hidden;
   overscroll-behavior: none;
   -webkit-font-smoothing: antialiased;
@@ -75,10 +75,7 @@ body {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
-
-*::-webkit-scrollbar {
-  display: none;
-}
+*::-webkit-scrollbar { display: none; }
 
 /* ── 按钮基础 ─────────────────────────────────────────── */
 button {
@@ -93,58 +90,23 @@ button {
 
 /* ── 动画 ─────────────────────────────────────────────── */
 @keyframes fadeUp {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
-
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
-
 @keyframes pulse {
-
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.4;
-  }
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
 }
 
 /* ── 通用工具类 ───────────────────────────────────────── */
-.animate-fade-up {
-  animation: fadeUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.25s ease both;
-}
-
-.animate-spin {
-  animation: spin 0.8s linear infinite;
-}
-
-.animate-pulse {
-  animation: pulse 1.5s ease-in-out infinite;
-}
+.animate-fade-up  { animation: fadeUp  0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-fade-in  { animation: fadeIn  0.25s ease both; }
+.animate-spin     { animation: spin    0.8s linear infinite; }
+.animate-pulse    { animation: pulse   1.5s ease-in-out infinite; }
