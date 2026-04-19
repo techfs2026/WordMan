@@ -268,8 +268,11 @@ export async function playAudio(file: string): Promise<void> {
   if (!file) return
   const entry = await db.audioBlobs.get(file)
   if (!entry) { console.warn(`音频不在本地: ${file}`); return }
-  const url = URL.createObjectURL(entry.blob)
+  // 明确指定 audio/mpeg，避免手机浏览器因 blob 无 MIME type 而拒绝播放
+  const blob = new Blob([entry.blob], { type: 'audio/mpeg' })
+  const url = URL.createObjectURL(blob)
   const audio = new Audio(url)
+  audio.load()
   return new Promise((resolve) => {
     audio.onended = () => { URL.revokeObjectURL(url); resolve() }
     audio.onerror = () => { URL.revokeObjectURL(url); resolve() }

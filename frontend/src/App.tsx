@@ -98,9 +98,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <div className="status-bar-fill" />
-
-      {/* 顶栏 */}
+      {/* 顶栏：padding-top 内联处理 safe area，不再依赖独立 div */}
       <header className="app-header">
         <span className="app-logo">词</span>
         <div className="header-center">
@@ -336,17 +334,18 @@ const appStyles = `
   position: relative;
 }
 
-.status-bar-fill {
-  height: var(--safe-top);
-  background: var(--bg);
-  flex-shrink: 0;
-}
-
-/* ── 顶栏 ── */
+/* ── 顶栏 ──
+   padding-top 吸收状态栏高度：
+   iOS PWA 用 safe-area-inset-top（通常 44–59px）；
+   若为 0（如 Android 或普通浏览器）则退回 10px。
+*/
 .app-header {
   display: flex;
   align-items: center;
-  padding: 10px 18px 10px;
+  padding-top: max(env(safe-area-inset-top, 0px), 10px);
+  padding-bottom: 10px;
+  padding-left: 18px;
+  padding-right: 18px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--border);
   gap: 10px;
