@@ -2,10 +2,7 @@
 .app {
     display: flex;
     flex-direction: column;
-    /* 使用 100svh（small viewport height）在 iOS Safari / PWA 下更可靠 */
-    height: 100svh;
-    height: 100dvh;
-    /* 支持时优先用 dvh */
+    height: 100vh;
     width: 100%;
     background: var(--bg);
     max-width: 480px;
@@ -106,12 +103,6 @@
     overflow: hidden;
     position: relative;
     min-height: 0;
-
-    padding-bottom: calc($ {
-            TAB_BAR_HEIGHT
-        }
-
-        px + var(--safe-bottom));
 }
 
 /* 返回按钮 */
@@ -316,18 +307,14 @@
      浏览器模式下同样正常。
   */
 .tab-bar {
-    position: fixed;
-    bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
+    flex-shrink: 0;
     width: 100%;
     max-width: 480px;
     background: rgba(255, 255, 255, 0.96);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-top: 1px solid var(--border);
-    padding-bottom: var(--safe-bottom);
-    z-index: 100;
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px);
 }
 
 .tab-bar-inner {

@@ -46,14 +46,13 @@
   -webkit-touch-callout: none;
 }
 
-html {
+html, body {
   height: 100%;
   background: var(--bg);
 }
 
 body {
-  height: 100%;
-  background: var(--bg);
+  height: 100dvh;
   color: var(--text-primary);
   font-family: var(--font-body);
   font-size: 18px;
