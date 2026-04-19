@@ -1,12 +1,9 @@
-/**
- * App.tsx — 主应用
- */
-
 import { useState, useEffect, useCallback } from 'react'
 import { WordCardDeck } from './components/WordCard'
 import { SyncPanel } from './components/SyncPanel'
-import { getAllWords } from './services/db'
+import { getAllWords, markReviewed } from './services/db'
 import type { WordEntry } from './services/db'
+import './App.css'
 
 type Tab = 'study' | 'review' | 'sync'
 
@@ -42,14 +39,14 @@ export default function App() {
 
   const todayStr = new Date().toDateString()
   const todayWords = words.filter(w => new Date(w.addedAt).toDateString() === todayStr)
-  const histWords  = words.filter(w => new Date(w.addedAt).toDateString() !== todayStr)
+  const histWords = words.filter(w => new Date(w.addedAt).toDateString() !== todayStr)
   const reviewedToday = todayWords.filter(w => (w.reviewCount ?? 0) > 0).length
 
   const [appState, setAppState] = useState<AppState>(() => {
     try {
       const raw = localStorage.getItem('word_app_state')
       if (raw) return JSON.parse(raw)
-    } catch {}
+    } catch { }
     return {
       tab: 'study',
       study: { index: 0, date: todayStr },
@@ -98,7 +95,6 @@ export default function App() {
 
   return (
     <div className="app">
-      {/* 顶栏：padding-top 内联处理 safe area，不再依赖独立 div */}
       <header className="app-header">
         <span className="app-logo">词</span>
         <div className="header-center">
@@ -120,7 +116,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* 内容区 — 底部留出 tab bar 高度 */}
       <main className="app-main">
         {tab === 'study' && (
           loading ? <LoadingState /> :
@@ -132,6 +127,12 @@ export default function App() {
                 words={todayWords}
                 initialIndex={appState.study.index}
                 onIndexChange={handleStudyIndexChange}
+                onReviewed={async (id) => {
+                  await markReviewed(id)
+                  setWords(prev => prev.map(w =>
+                    w.id === id ? { ...w, reviewCount: (w.reviewCount ?? 0) + 1, lastReviewAt: Date.now() } : w
+                  ))
+                }}
               />
             )
         )}
@@ -155,6 +156,12 @@ export default function App() {
                     })}
                     initialIndex={appState.review.index}
                     onIndexChange={handleReviewIndexChange}
+                    onReviewed={async (id) => {
+                      await markReviewed(id)
+                      setWords(prev => prev.map(w =>
+                        w.id === id ? { ...w, reviewCount: (w.reviewCount ?? 0) + 1, lastReviewAt: Date.now() } : w
+                      ))
+                    }}
                   />
                 </div>
               </div>
@@ -168,7 +175,7 @@ export default function App() {
               <div className="sync-tips animate-fade-up">
                 <p className="tip-title">使用步骤</p>
                 <ol className="tip-list">
-                  <li>Mac 上运行 <code>python extract.py --mdx 词典.mdx --mdd 词典.mdd</code></li>
+                  <li>运行 <code>python extract.py --mdx 词典.mdx --mdd 词典.mdd</code></li>
                   <li>脚本自动生成 <code>dist.zip</code>（含单词和音频）</li>
                   <li>通过 AirDrop / 文件 App 将 <code>dist.zip</code> 传到手机</li>
                   <li>点击上方「选择 dist.zip」导入，完成后离线可用</li>
@@ -179,13 +186,12 @@ export default function App() {
         )}
       </main>
 
-      {/* Tab Bar — position:fixed 确保 PWA 模式下也钉在底部 */}
       <nav className="tab-bar">
         <div className="tab-bar-inner">
           {([
-            { key: 'study',  label: '今日',  icon: <StudyIcon /> },
-            { key: 'review', label: '复习',  icon: <ReviewIcon /> },
-            { key: 'sync',   label: '同步',  icon: <SyncIcon /> },
+            { key: 'study', label: '今日', icon: <StudyIcon /> },
+            { key: 'review', label: '复习', icon: <ReviewIcon /> },
+            { key: 'sync', label: '同步', icon: <SyncIcon /> },
           ] as const).map(({ key, label, icon }) => (
             <button
               key={key}
@@ -198,19 +204,15 @@ export default function App() {
           ))}
         </div>
       </nav>
-
-      <style>{appStyles}</style>
     </div>
   )
 }
-
-// ── 复习日期列表 ──────────────────────────────────────────
 
 function ReviewDateList({ words, onSelect }: { words: WordEntry[]; onSelect: (date: string) => void }) {
   const grouped = words.reduce<Record<string, WordEntry[]>>((acc, w) => {
     const d = new Date(w.addedAt)
     const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    ;(acc[k] ??= []).push(w)
+      ; (acc[k] ??= []).push(w)
     return acc
   }, {})
   const keys = Object.keys(grouped).sort().reverse()
@@ -247,8 +249,6 @@ function ReviewDateList({ words, onSelect }: { words: WordEntry[]; onSelect: (da
   )
 }
 
-// ── 工具组件 ──────────────────────────────────────────────
-
 function LoadingState() {
   return (
     <div className="center-state">
@@ -280,8 +280,6 @@ function formatDateLabel(dateKey: string): string {
   return `${d.getMonth() + 1} 月 ${d.getDate()} 日`
 }
 
-// ── Tab 图标 ──────────────────────────────────────────────
-
 function StudyIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -307,330 +305,3 @@ function SyncIcon() {
     </svg>
   )
 }
-
-// ── 样式 ─────────────────────────────────────────────────
-
-/*
- * Tab bar 修复说明：
- *   在 iOS PWA（添加到主屏幕）模式下，100dvh 有时无法覆盖完整视口，
- *   导致 tab bar 被推到屏幕外。改用 position:fixed + bottom:0 是最可靠的方案。
- *   相应地，app-main 需要 padding-bottom 留出 tab bar 高度。
- */
-
-const TAB_BAR_HEIGHT = 56 // px，不含 safe area
-
-const appStyles = `
-/* ── 整体布局 ── */
-.app {
-  display: flex;
-  flex-direction: column;
-  /* 使用 100svh（small viewport height）在 iOS Safari / PWA 下更可靠 */
-  height: 100svh;
-  height: 100dvh; /* 支持时优先用 dvh */
-  width: 100%;
-  background: var(--bg);
-  max-width: 480px;
-  margin: 0 auto;
-  position: relative;
-}
-
-/* ── 顶栏 ──
-   padding-top 吸收状态栏高度：
-   iOS PWA 用 safe-area-inset-top（通常 44–59px）；
-   若为 0（如 Android 或普通浏览器）则退回 10px。
-*/
-.app-header {
-  display: flex;
-  align-items: center;
-  padding-top: max(env(safe-area-inset-top, 0px), 10px);
-  padding-bottom: 10px;
-  padding-left: 18px;
-  padding-right: 18px;
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--border);
-  gap: 10px;
-  background: var(--bg);
-}
-
-.app-logo {
-  font-family: var(--font-display);
-  font-size: 1.5rem;
-  color: var(--accent);
-  flex-shrink: 0;
-  font-weight: 700;
-}
-
-.header-center { flex: 1; min-width: 0; }
-
-.header-progress {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.header-track {
-  flex: 1;
-  height: 3px;
-  background: var(--border);
-  border-radius: 3px;
-  overflow: hidden;
-}
-.header-fill {
-  height: 100%;
-  background: var(--accent);
-  border-radius: 3px;
-  transition: width 0.5s ease;
-}
-.header-frac {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-.offline-badge {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  padding: 2px 8px;
-  border-radius: 20px;
-  border: 1px solid var(--border-hi);
-  color: var(--text-muted);
-}
-.word-count {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-muted);
-}
-
-/* ── 内容区 ──
-   留出底部 tab bar 的高度，避免内容被遮住。
-   tab bar 用 position:fixed，所以这里用 padding-bottom 补偿。
-*/
-.app-main {
-  flex: 1;
-  overflow: hidden;
-  position: relative;
-  min-height: 0;
-  padding-bottom: calc(${TAB_BAR_HEIGHT}px + var(--safe-bottom));
-}
-
-/* 返回按钮 */
-.back-btn {
-  display: flex;
-  align-items: center;
-  padding: 10px 18px;
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--accent);
-  flex-shrink: 0;
-  cursor: pointer;
-  background: none;
-  border: none;
-  font-family: var(--font-body);
-  transition: opacity 0.2s;
-}
-.back-btn:active { opacity: 0.6; }
-
-/* view-container */
-.view-container {
-  position: absolute;
-  inset: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  padding: 16px 16px 0;
-}
-
-/* ── 日期列表 ── */
-.date-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.date-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 18px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--bg-card);
-  cursor: pointer;
-  text-align: left;
-  transition: border-color 0.18s, box-shadow 0.18s;
-  width: 100%;
-  box-shadow: 0 1px 4px rgba(13,71,161,0.04);
-}
-.date-row:active {
-  border-color: var(--accent);
-  box-shadow: 0 2px 8px rgba(13,71,161,0.10);
-}
-.date-row-left {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.date-row-date {
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-.date-row-count {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--text-muted);
-}
-.date-row-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.date-mini-track {
-  width: 64px;
-  height: 3px;
-  background: var(--border);
-  border-radius: 3px;
-  overflow: hidden;
-}
-.date-mini-fill {
-  height: 100%;
-  background: var(--green);
-  border-radius: 3px;
-}
-.date-row-chevron {
-  color: var(--text-muted);
-  font-size: 20px;
-  line-height: 1;
-}
-
-/* ── 同步视图 ── */
-.sync-view-inner {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding-bottom: 24px;
-}
-.sync-tips {
-  padding: 18px 18px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--bg-raised);
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.tip-title {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.15em;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  font-weight: 500;
-}
-.tip-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-left: 1.3em;
-  margin: 0;
-}
-.tip-list li {
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--text-secondary);
-  font-weight: 400;
-}
-.tip-list code {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  background: var(--bg-card);
-  padding: 1px 6px;
-  border-radius: 4px;
-  color: var(--accent);
-  border: 1px solid var(--border);
-  font-weight: 400;
-}
-
-/* ── 加载 / 空状态 ── */
-.center-state {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  padding: 40px;
-}
-.loading-dots { display: flex; gap: 7px; }
-.dot {
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  background: var(--text-muted);
-}
-.empty-icon { font-size: 2.8rem; line-height: 1; }
-.empty-title {
-  font-family: var(--font-display);
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--text-secondary);
-}
-.empty-desc {
-  font-size: 14px;
-  color: var(--text-muted);
-  text-align: center;
-  line-height: 1.7;
-  white-space: pre-line;
-}
-
-/* ── Tab Bar ──
-   position: fixed + bottom: 0 是在 iOS PWA 模式下最可靠的方式。
-   浏览器模式下同样正常。
-*/
-.tab-bar {
-  position: fixed;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 480px;
-  background: rgba(255,255,255,0.96);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-top: 1px solid var(--border);
-  padding-bottom: var(--safe-bottom);
-  z-index: 100;
-}
-.tab-bar-inner {
-  display: flex;
-  justify-content: space-around;
-}
-.tab-btn {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  padding: 10px 0 9px;
-  color: var(--text-muted);
-  transition: color 0.2s;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  cursor: pointer;
-}
-.tab-btn.active {
-  color: var(--accent);
-}
-.tab-btn.active svg {
-  stroke: var(--accent);
-}
-.tab-btn:active { opacity: 0.65; }
-`

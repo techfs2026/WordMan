@@ -1,14 +1,7 @@
-/**
- * LdoceCard.tsx
- * 渲染朗文5结构化数据：支持多词性（如 date 同时有名词/动词）
- * 每个词性独立展示：词性、音标、义项、例句（含音频按钮）、词族、词源
- *
- * 顺序规则：CORPUS EXAMPLES 永远在 WORD FAMILY 之前渲染
- */
-
 import { useCallback, useState } from 'react'
 import type { ExampleEntry } from '../services/db'
 import { playAudio } from '../services/db'
+import './LdoceCard.css'
 
 // ── 类型定义 ──────────────────────────────────────────
 
@@ -47,7 +40,6 @@ export interface LdoceParsed {
   entries: LdoceEntry[]
   word_family?: WordFamilyGroup[]
   corpus_examples?: ExampleEntry[]
-  /** 解析失败时存在 */
   _raw_html?: string
 }
 
@@ -73,8 +65,8 @@ export function LdoceCard({ parsed }: Props) {
   }
 
   const entries = parsed.entries ?? []
-  const hasTopFamily  = (parsed.word_family?.length ?? 0) > 0
-  const hasTopCorpus  = (parsed.corpus_examples?.length ?? 0) > 0
+  const hasTopFamily = (parsed.word_family?.length ?? 0) > 0
+  const hasTopCorpus = (parsed.corpus_examples?.length ?? 0) > 0
   const multiPos = entries.length > 1
 
   return (
@@ -86,8 +78,8 @@ export function LdoceCard({ parsed }: Props) {
           {/* ── 词性 / 语法 / 语域 ── */}
           {(entry.pos || entry.gram || entry.register) && (
             <div className="lc-meta-row">
-              {entry.pos      && <span className="lc-pos">{entry.pos}</span>}
-              {entry.gram     && <span className="lc-gram">{entry.gram}</span>}
+              {entry.pos && <span className="lc-pos">{entry.pos}</span>}
+              {entry.gram && <span className="lc-gram">{entry.gram}</span>}
               {entry.register && <span className="lc-register">{entry.register}</span>}
             </div>
           )}
@@ -180,8 +172,6 @@ export function LdoceCard({ parsed }: Props) {
           </div>
         </div>
       )}
-
-      <style>{styles}</style>
     </div>
   )
 }
@@ -236,261 +226,3 @@ function WaveIcon() {
     </svg>
   )
 }
-
-// ── 样式 ─────────────────────────────────────────────
-
-const styles = `
-.lc-root {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-/* 单个词性块 */
-.lc-entry {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-/* 多词性分隔 */
-.lc-entry-multi + .lc-entry-multi {
-  padding-top: 18px;
-  margin-top: 4px;
-  border-top: 2px solid color-mix(in srgb, var(--accent) 20%, transparent);
-}
-
-/* 顶层共用区块间距 */
-.lc-corpus-top,
-.lc-family-top {
-  margin-top: 4px;
-}
-
-/* 词性行 */
-.lc-meta-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-}
-.lc-pos {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--accent);
-  border: 1.5px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  border-radius: 4px;
-  padding: 2px 8px;
-  font-weight: 500;
-}
-.lc-gram {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-muted);
-  border: 1px solid var(--border-hi);
-  border-radius: 4px;
-  padding: 2px 7px;
-}
-.lc-register {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: #7a6040;
-  border: 1px solid rgba(120,90,50,0.35);
-  border-radius: 4px;
-  padding: 2px 7px;
-  font-style: italic;
-}
-
-/* 音频按钮 */
-.lc-audio-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 1px solid var(--border-hi);
-  background: transparent;
-  color: var(--text-muted);
-  flex-shrink: 0;
-  transition: all 0.18s;
-  cursor: pointer;
-}
-.lc-audio-btn:active,
-.lc-audio-btn.playing {
-  background: var(--accent-dim);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-/* 义项 */
-.lc-senses {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-.lc-sense {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  padding: 14px 0;
-  border-top: 1px solid var(--border);
-}
-.lc-sense:first-child {
-  border-top: none;
-  padding-top: 0;
-}
-.lc-sense-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.lc-sense-num {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-muted);
-  min-width: 16px;
-}
-.lc-activ {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  color: #3d7a56;
-  border: 1px solid rgba(60,120,80,0.35);
-  border-radius: 3px;
-  padding: 1px 5px;
-  text-transform: uppercase;
-  font-weight: 500;
-}
-
-/* 释义文字 — 加粗加大，英文斜体 */
-.lc-def-en {
-  font-size: 16px;
-  line-height: 1.7;
-  color: var(--text-primary);
-  font-weight: 500;
-  font-style: italic;
-  word-spacing: 0.03em;
-}
-.lc-def-cn {
-  font-size: 15px;
-  line-height: 1.65;
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
-/* 例句列表 */
-.lc-examples {
-  list-style: none;
-  padding: 0;
-  margin: 4px 0 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-left: 12px;
-  border-left: 2.5px solid color-mix(in srgb, var(--accent) 25%, transparent);
-}
-.lc-example-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-}
-.lc-example-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.lc-ex-en {
-  font-size: 14px;
-  line-height: 1.7;
-  color: var(--text-secondary);
-  font-style: italic;
-  word-spacing: 0.02em;
-  font-weight: 400;
-}
-.lc-ex-cn {
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--text-muted);
-  font-weight: 400;
-}
-
-/* 语料库例句 */
-.lc-corpus {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
-}
-
-/* 词族 */
-.lc-family {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
-}
-.lc-family-groups {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.lc-family-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.lc-family-pos {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-muted);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  font-weight: 500;
-}
-.lc-family-words {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.lc-family-word {
-  font-size: 14px;
-  color: var(--text-secondary);
-  padding: 3px 10px;
-  border-radius: 5px;
-  background: var(--bg-raised);
-  border: 1px solid var(--border-hi);
-  font-weight: 500;
-}
-
-/* section label */
-.lc-section-label {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.16em;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  font-weight: 500;
-}
-
-/* 词源 */
-.lc-etym {
-  font-size: 12px;
-  color: var(--text-muted);
-  font-style: italic;
-  line-height: 1.65;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
-
-.lc-raw {
-  font-size: 13px;
-  color: var(--text-muted);
-  font-style: italic;
-}
-`
