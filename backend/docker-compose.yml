@@ -1,0 +1,18 @@
+services:
+  dict-api:
+    build: .
+    ports:
+      - "8765:8765"
+    volumes:
+      # 将本地存放词典的目录挂载到容器 /data（只读）
+      # 修改左边的路径为你的词典实际位置
+      - ./dict_files:/data:ro
+      # 任务文件（zip）持久化
+      - ./jobs:/app/jobs
+    environment:
+      # 修改文件名以匹配你的词典
+      MDX_PATH: /data/LDOCE5.mdx
+      MDD_PATH: /data/LDOCE5.mdd
+    restart: unless-stopped
+    # 如需使用宿主机网络（局域网 IP 直通），取消下面注释并删除 ports
+    # network_mode: host

@@ -1,10 +1,11 @@
 node_modules/
 dist/
+
 __pycache__/
 
-LDOCE5/
+dict_files/
+jobs/
 
 .DS_Store
 note.md
 temp.html
-dist.zip
