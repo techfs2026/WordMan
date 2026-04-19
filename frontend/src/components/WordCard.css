@@ -310,15 +310,15 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width:42px;
+    height: 42px;
     border-radius: 50%;
     border: 1px solid var(--border);
     color: var(--text-muted);
     flex-shrink: 0;
     opacity: 0.6;
-    margin-top: 4px;
-    background: transparent;
+    margin-top: 8px;
+    background: var(--bg-raised);
     cursor: pointer;
     transition: opacity 0.18s, border-color 0.18s;
 }

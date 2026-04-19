@@ -1,38 +1,51 @@
 /* ── Google Fonts ─────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400&family=Noto+Sans+SC:wght@400;500;700&display=swap');
+/*
+  英文展示字体：Playfair Display — 经典衬线，笔触优雅，2020s 最受欢迎的标题字体之一
+  英文等宽字体：Geist Mono — Vercel 出品，现代感极强，目前最流行的代码/UI mono
+  中文字体：    LXGW WenKai Screen — 霞鹜文楷屏幕版，兼顾阅读性与美感，近年国内最受追捧
+  后备中文：    Noto Sans SC — Google 出品，覆盖广，渲染稳定
+*/
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=Geist+Mono:wght@300;400;500&family=Noto+Sans+SC:wght@400;500;700&display=swap');
+@import url('https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-webfont@1.7.0/style.css');
 
-/* ── CSS 变量（深蓝白主题） ──────────────────────────── */
+/* ── CSS 变量（深蓝白主题 · 2025 Edition） ───────────── */
 :root {
-  --bg: #f5f7fa;
+  /* 背景系 — 纯白为主，极浅灰做层次，不加蓝色调 */
+  --bg: #f8f9fb;
   --bg-card: #ffffff;
-  --bg-raised: #edf1f7;
-  --border: rgba(15, 40, 90, 0.10);
-  --border-hi: rgba(15, 40, 90, 0.22);
+  --bg-raised: #f0f2f5;
 
-  --text-primary: #0a1628;
-  --text-secondary: #253f6b;
-  --text-muted: #6e89b0;
+  /* 描边 — 非常克制，只用黑色透明度 */
+  --border: rgba(0, 0, 0, 0.07);
+  --border-hi: rgba(0, 0, 0, 0.14);
 
-  --accent: #0d47a1;       /* 深海蓝 */
-  --accent-mid: #1565c0;
-  --accent-dim: rgba(13, 71, 161, 0.10);
-  --accent-glow: rgba(13, 71, 161, 0.07);
+  /* 文字 — 近黑 / 深蓝灰 / 中灰，不用纯黑避免刺眼 */
+  --text-primary: #0d1117;
+  --text-secondary: #1e2d45;
+  --text-muted: #6b7a90;
 
-  --red: #c62828;
-  --green: #2e7d52;
+  /* 强调色 — 深宝蓝，饱和度略降，更沉稳 */
+  --accent: #1a3fa3;
+  --accent-mid: #2251c5;
+  --accent-dim: rgba(26, 63, 163, 0.09);
+  --accent-glow: rgba(26, 63, 163, 0.05);
 
-  --radius-sm: 10px;
-  --radius-md: 16px;
-  --radius-lg: 24px;
+  --red: #c0392b;
+  --green: #1e6e45;
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
 
   --safe-top: max(env(safe-area-inset-top, 0px), 44px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
 
-  --font-display: 'DM Serif Display', serif;
-  --font-mono: 'DM Mono', monospace;
-  --font-body: 'Noto Sans SC', sans-serif;
+  /* 字体栈 */
+  --font-display: 'Playfair Display', 'LXGW WenKai Screen', 'Noto Serif SC', Georgia, serif;
+  --font-mono: 'Geist Mono', 'SFMono-Regular', Menlo, monospace;
+  --font-body: 'LXGW WenKai Screen', 'Noto Sans SC', -apple-system, sans-serif;
 }
 
 /* ── Reset ────────────────────────────────────────────── */
