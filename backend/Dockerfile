@@ -13,6 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # 应用代码
 COPY app.py .
+COPY index.html .
 
 # 任务输出目录
 RUN mkdir -p /app/jobs
