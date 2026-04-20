@@ -272,12 +272,16 @@ function EmptyState({ icon, title, desc }: { icon: string; title: string; desc: 
 }
 
 function formatDateLabel(dateKey: string): string {
-  const d = new Date(dateKey)
+  // 手动解析为本地时间，避免 new Date("YYYY-MM-DD") 按 UTC 解析导致跨天误差
+  const [y, m, day] = dateKey.split('-').map(Number)
+  const d = new Date(y, m - 1, day)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  const diff = Math.floor((today.getTime() - d.getTime()) / 86400000)
-  if (diff < 7) return `${diff} 天前`
-  return `${d.getMonth() + 1} 月 ${d.getDate()} 日`
+  const diff = Math.round((today.getTime() - d.getTime()) / 86400000)
+  if (diff === 0) return '今天'
+  if (diff === 1) return '昨天'
+  if (diff < 7)  return `${diff} 天前`
+  return `${m} 月 ${day} 日`
 }
 
 function StudyIcon() {
